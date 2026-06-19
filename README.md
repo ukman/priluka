@@ -70,6 +70,33 @@ Maven coordinates:
 <artifactId>priluka</artifactId>
 ```
 
+## Current Implementation Status
+
+Implemented:
+
+- annotation API in `io.github.ukman.priluka.annotation`
+- runtime `Token`, `GrammarException`, and `ParseException`
+- `Parser.describe(...)`
+- `Parser.init(classes).describe(...)`
+- `Parser.initFromOuterClass(...).describe(...)`
+- compact `GrammarModel`
+- BNF-like diagnostics through `GrammarModel.toBnf()`
+- reflection discovery for constructor productions
+- multiple constructors as alternatives
+- interface alternatives inside an explicit class universe
+- built-in terminals for `Integer`, `Double`, and `Boolean`
+- explicit `@Terminal` and `@Keyword` terminals
+- arrays, collections, `Optional<T>`, `@OneOrMore`, and `@Separator`
+
+Not implemented yet:
+
+- lexer
+- NFA compiler
+- NFA simulation
+- parse trace
+- object construction from a parse trace
+- real `Parser.parse(...)`
+
 ## Design Direction
 
 - A grammar is primarily described by Java classes.
