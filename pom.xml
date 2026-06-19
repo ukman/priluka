@@ -3,14 +3,14 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.priluka</groupId>
+    <groupId>io.github.ukman</groupId>
     <artifactId>priluka</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <name>Priluka</name>
     <description>Priluka Java project</description>
 
     <properties>
-        <maven.compiler.release>11</maven.compiler.release>
+        <maven.compiler.release>8</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <junit.jupiter.version>5.11.4</junit.jupiter.version>
         <surefire.version>3.5.2</surefire.version>

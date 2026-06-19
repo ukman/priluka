@@ -1,4 +1,4 @@
-package com.priluka;
+package io.github.ukman.priluka;
 
 public final class App {
     private App() {

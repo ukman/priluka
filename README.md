@@ -55,6 +55,21 @@ A a = Parser.parse(A.class, "456 78");
 
 The parser should return an initialized instance of `A`.
 
+## Coordinates
+
+Primary Java package:
+
+```text
+io.github.ukman.priluka
+```
+
+Maven coordinates:
+
+```xml
+<groupId>io.github.ukman</groupId>
+<artifactId>priluka</artifactId>
+```
+
 ## Design Direction
 
 - A grammar is primarily described by Java classes.

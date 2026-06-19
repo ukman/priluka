@@ -1,4 +1,4 @@
-package com.priluka;
+package io.github.ukman.priluka;
 
 import org.junit.jupiter.api.Test;
 
