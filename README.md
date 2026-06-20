@@ -1341,6 +1341,39 @@ simplified-sql cached-reflective-engine bytes=51265 values=4757 avg=3.6451s spee
 This grammar is intentionally acyclic and has a test that checks
 `GrammarModel.checkNfaCompatibility().isSupported()`.
 
+For a join-heavy variant with independently configurable select-field count
+and join count:
+
+```bash
+mvn -Dpriluka.perf=true \
+    -Dtest=ParserPerformanceTest#comparesPublicNfaAndReflectiveParserOnJoinHeavySimplifiedSqlSelects \
+    -Dpriluka.parser.sql.fields=100,1000 \
+    -Dpriluka.parser.sql.joins=10,100 \
+    -Dpriluka.perf.warmup=1 \
+    -Dpriluka.perf.runs=3 \
+    test
+```
+
+Current local result:
+
+```text
+join-heavy-sql public-parser-auto fields=100 joins=10 bytes=1458 values=101 avg=0.0211s speed=0.07 MiB/s values=4782/s
+join-heavy-sql cached-nfa-engine fields=100 joins=10 bytes=1458 values=101 avg=0.0075s speed=0.19 MiB/s values=13536/s
+join-heavy-sql cached-reflective-engine fields=100 joins=10 bytes=1458 values=101 avg=0.0157s speed=0.09 MiB/s values=6429/s
+
+join-heavy-sql public-parser-auto fields=100 joins=100 bytes=4971 values=101 avg=0.0204s speed=0.23 MiB/s values=4944/s
+join-heavy-sql cached-nfa-engine fields=100 joins=100 bytes=4971 values=101 avg=0.0172s speed=0.28 MiB/s values=5867/s
+join-heavy-sql cached-reflective-engine fields=100 joins=100 bytes=4971 values=101 avg=0.0240s speed=0.20 MiB/s values=4205/s
+
+join-heavy-sql public-parser-auto fields=1000 joins=10 bytes=13158 values=1001 avg=0.0454s speed=0.28 MiB/s values=22033/s
+join-heavy-sql cached-nfa-engine fields=1000 joins=10 bytes=13158 values=1001 avg=0.0392s speed=0.32 MiB/s values=25505/s
+join-heavy-sql cached-reflective-engine fields=1000 joins=10 bytes=13158 values=1001 avg=0.4147s speed=0.03 MiB/s values=2414/s
+
+join-heavy-sql public-parser-auto fields=1000 joins=100 bytes=16671 values=1001 avg=0.0643s speed=0.25 MiB/s values=15569/s
+join-heavy-sql cached-nfa-engine fields=1000 joins=100 bytes=16671 values=1001 avg=0.0435s speed=0.37 MiB/s values=23013/s
+join-heavy-sql cached-reflective-engine fields=1000 joins=100 bytes=16671 values=1001 avg=0.2604s speed=0.06 MiB/s values=3844/s
+```
+
 It also includes a small SQL `select` grammar that exercises keyword/identifier
 ambiguity and backtracking conflicts:
 

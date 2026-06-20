@@ -65,6 +65,46 @@ class ParserPerformanceTest {
         }
     }
 
+    @Test
+    void comparesPublicNfaAndReflectiveParserOnJoinHeavySimplifiedSqlSelects() {
+        Assumptions.assumeTrue(
+            Boolean.getBoolean("priluka.perf"),
+            "Manual parser performance dump. Run with -Dpriluka.perf=true -Dtest=ParserPerformanceTest."
+        );
+
+        Parser.InitializedParser publicParser = Parser.initFromOuterClass(
+            SimplifiedSqlSelectParserTest.SimpleSqlGrammar.class
+        );
+        GrammarModel model = publicParser.describe(
+            SimplifiedSqlSelectParserTest.SimpleSqlGrammar.SelectStatement.class
+        );
+        SqlEngineRun nfaEngine = new SqlEngineRun("join-heavy-sql cached-nfa-engine", new NfaParseEngine(model));
+        SqlEngineRun reflectiveEngine = new SqlEngineRun(
+            "join-heavy-sql cached-reflective-engine",
+            new ReflectiveParser(model)
+        );
+
+        int[] fields = sqlFieldCounts();
+        int[] joins = sqlJoinCounts();
+        for (int i = 0; i < fields.length; i++) {
+            for (int j = 0; j < joins.length; j++) {
+                String input = generatedJoinHeavySimplifiedSql(fields[i], joins[j]);
+                System.out.println(measurePublicSql(
+                    publicParser,
+                    "join-heavy-sql public-parser-auto fields=" + fields[i] + " joins=" + joins[j],
+                    input
+                ));
+                System.out.println(measureSqlEngine(nfaEngine.withLabel(
+                    "join-heavy-sql cached-nfa-engine fields=" + fields[i] + " joins=" + joins[j]
+                ), input));
+                System.out.println(measureSqlEngine(reflectiveEngine.withLabel(
+                    "join-heavy-sql cached-reflective-engine fields=" + fields[i] + " joins=" + joins[j]
+                ), input));
+                System.out.println();
+            }
+        }
+    }
+
     private Result measurePublic(Parser.InitializedParser parser, String label, String input) {
         NumberArray value = null;
         for (int i = 0; i < WARMUP_RUNS; i++) {
@@ -172,6 +212,28 @@ class ParserPerformanceTest {
         return sizes;
     }
 
+    private int[] sqlFieldCounts() {
+        return intList("priluka.parser.sql.fields", new int[] {100, 1000});
+    }
+
+    private int[] sqlJoinCounts() {
+        return intList("priluka.parser.sql.joins", new int[] {10, 100});
+    }
+
+    private int[] intList(String property, int[] defaultValue) {
+        String configured = System.getProperty(property);
+        if (configured == null || configured.trim().isEmpty()) {
+            return defaultValue;
+        }
+
+        String[] parts = configured.split(",");
+        int[] values = new int[parts.length];
+        for (int i = 0; i < parts.length; i++) {
+            values[i] = Integer.parseInt(parts[i].trim());
+        }
+        return values;
+    }
+
     private String generatedNumberList(int targetBytes) {
         StringBuilder result = new StringBuilder(targetBytes + 16);
         int index = 0;
@@ -200,6 +262,27 @@ class ParserPerformanceTest {
             + " left join table4 t4 on t3.id=t4.id";
     }
 
+    private String generatedJoinHeavySimplifiedSql(int fieldCount, int joinCount) {
+        StringBuilder result = new StringBuilder(fieldCount * 12 + joinCount * 48 + 64);
+        result.append("select p.*");
+        for (int i = 0; i < fieldCount; i++) {
+            result.append(", t").append(i).append(".col").append(i);
+        }
+        result.append(" from table0 t0");
+        for (int i = 1; i <= joinCount; i++) {
+            result.append(" left join table")
+                .append(i)
+                .append(" t")
+                .append(i)
+                .append(" on t")
+                .append(i - 1)
+                .append(".id=t")
+                .append(i)
+                .append(".id");
+        }
+        return result.toString();
+    }
+
     private static final class EngineRun {
         private final String label;
         private final ParseEngine engine;
@@ -224,6 +307,10 @@ class ParserPerformanceTest {
         private SqlEngineRun(String label, ParseEngine engine) {
             this.label = label;
             this.engine = engine;
+        }
+
+        private SqlEngineRun withLabel(String label) {
+            return new SqlEngineRun(label, engine);
         }
 
         private SimplifiedSqlSelectParserTest.SimpleSqlGrammar.SelectStatement parse(String input) {
