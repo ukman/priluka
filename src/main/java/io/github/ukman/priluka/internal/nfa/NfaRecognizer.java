@@ -120,12 +120,14 @@ public final class NfaRecognizer {
         List<NfaFindResult> results = new ArrayList<NfaFindResult>();
         int tokenIndex = 0;
         while (tokenIndex < lexemes.size()) {
-            NfaFindResult result = find(lexemes, tokenIndex);
-            if (result == null) {
+            FindSpan span = findSpan(lexemes, tokenIndex);
+            if (span == null) {
                 break;
             }
+            ParseTrace trace = parseTrace(lexemes.subList(span.startTokenIndex, span.endTokenIndex));
+            NfaFindResult result = new NfaFindResult(span.start, span.end, trace);
             results.add(result);
-            int nextTokenIndex = firstTokenAtOrAfter(lexemes, result.getEnd());
+            int nextTokenIndex = span.endTokenIndex;
             tokenIndex = nextTokenIndex > tokenIndex ? nextTokenIndex : tokenIndex + 1;
         }
         return results;
@@ -208,15 +210,6 @@ public final class NfaRecognizer {
             }
         }
         return result;
-    }
-
-    private int firstTokenAtOrAfter(List<Lexeme> lexemes, int offset) {
-        for (int i = 0; i < lexemes.size(); i++) {
-            if (lexemes.get(i).getStart() >= offset) {
-                return i;
-            }
-        }
-        return lexemes.size();
     }
 
     private List<Configuration> epsilonClosure(List<Configuration> seed, boolean captureTrace) {

@@ -131,6 +131,19 @@ class NfaRecognizerTest {
     }
 
     @Test
+    void findsAdjacentNonOverlappingMatchingSpans() {
+        NfaRecognizer recognizer = recognizer(PlusNumber.class);
+
+        List<NfaFindResult> results = recognizer.findAll("+1+2");
+
+        assertEquals(2, results.size());
+        assertEquals(0, results.get(0).getStart());
+        assertEquals(2, results.get(0).getEnd());
+        assertEquals(2, results.get(1).getStart());
+        assertEquals(4, results.get(1).getEnd());
+    }
+
+    @Test
     void findKeepsLongestMatchForFirstAcceptedStart() {
         NfaRecognizer recognizer = recognizer(NumberArray.class);
 
