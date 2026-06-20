@@ -1220,6 +1220,11 @@ be seen both as a keyword and as an identifier token type. Parser v1 must avoid
 committing too early to a bare alias parse and must find the derivation where
 `left join` remains a join clause.
 
+The SQL test suite also includes malformed statements that must be rejected,
+including trailing commas in select lists, missing `from`, incomplete joins,
+empty `in ()`, incomplete `between`, and incomplete `group by` / `order by`
+clauses.
+
 Not supported in parser v1 yet:
 
 - `Optional`

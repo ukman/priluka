@@ -3,8 +3,11 @@ package io.github.ukman.priluka;
 import io.github.ukman.priluka.annotation.Keyword;
 import io.github.ukman.priluka.annotation.Terminal;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class SqlSelectParserTest {
     @Test
@@ -65,12 +68,39 @@ class SqlSelectParserTest {
         );
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "select name, from person",
+        "select from person",
+        "select * person",
+        "select * from",
+        "select name from person left join company on p.id = c.id",
+        "select * from person where id in ()",
+        "select * from person where id between 1",
+        "select * from person group last_name",
+        "select * from person order by",
+        "select * from person having count(*) between 1 and"
+    })
+    void rejectsMalformedSelectStatements(String input) {
+        assertThrows(ParseException.class, new ThrowingRunnable() {
+            @Override
+            public void execute() {
+                Parser
+                    .initFromOuterClass(SqlGrammar.class)
+                    .parse(SqlGrammar.SelectStatement.class, input);
+            }
+        });
+    }
+
     private void assertSql(String input, String expected) {
         SqlGrammar.SelectStatement statement = Parser
             .initFromOuterClass(SqlGrammar.class)
             .parse(SqlGrammar.SelectStatement.class, input);
 
         assertEquals(expected, statement.sql());
+    }
+
+    interface ThrowingRunnable extends org.junit.jupiter.api.function.Executable {
     }
 
     static final class SqlGrammar {
