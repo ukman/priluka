@@ -144,6 +144,13 @@ This benchmark generates about 5 MiB of random 1-10 digit numbers separated by
 spaces and counts matches of `[0-9]+` with plain `Matcher.find()`, without
 calling `group()`.
 
+It also includes a mixed-token regex baseline with whitespace, identifiers,
+numbers, quoted strings, and one-character operators:
+
+```text
+\s+|[A-Za-z_][A-Za-z0-9_]*|[0-9]+|"([^"\\]|\\.)*"|[+\-=()\[\]{}.,*/?]
+```
+
 ## Design Direction
 
 - A grammar is primarily described by Java classes.

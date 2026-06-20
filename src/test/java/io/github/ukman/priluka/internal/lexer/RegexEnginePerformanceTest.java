@@ -27,6 +27,23 @@ class RegexEnginePerformanceTest {
         System.out.println(result);
     }
 
+    @Test
+    void countMixedTokensWithPlainJavaRegex() {
+        Assumptions.assumeTrue(
+            Boolean.getBoolean("priluka.perf"),
+            "Manual regex baseline. Run with -Dpriluka.perf=true -Dtest=RegexEnginePerformanceTest."
+        );
+
+        String input = generateMixedInput(TARGET_BYTES);
+        Pattern pattern = Pattern.compile(
+            "\\s+|[A-Za-z_][A-Za-z0-9_]*|[0-9]+|\"([^\"\\\\]|\\\\.)*\"|[+\\-=()\\[\\]{}.,*/?]"
+        );
+
+        Result result = measure("java-regex-mixed-token-find", pattern, input);
+
+        System.out.println(result);
+    }
+
     private Result measure(String name, Pattern pattern, String input) {
         int tokenCount = 0;
         for (int i = 0; i < WARMUP_RUNS; i++) {
@@ -65,6 +82,49 @@ class RegexEnginePerformanceTest {
             builder.append(' ');
         }
         return builder.toString();
+    }
+
+    private String generateMixedInput(int targetBytes) {
+        Random random = new Random(987654321L);
+        String[] ids = {
+            "alpha", "beta_2", "gammaValue", "if", "else", "for", "while", "return", "className", "item123"
+        };
+        String[] strings = {
+            "\"hello\"",
+            "\"quoted string\"",
+            "\"escaped \\\" quote\"",
+            "\"path\\\\to\\\\file\""
+        };
+        char[] operators = "+-=()[]{}.,*/?".toCharArray();
+
+        StringBuilder builder = new StringBuilder(targetBytes + 64);
+        while (builder.length() < targetBytes) {
+            int kind = random.nextInt(5);
+            if (kind == 0) {
+                appendNumber(builder, random);
+            } else if (kind == 1) {
+                builder.append(ids[random.nextInt(ids.length)]);
+            } else if (kind == 2) {
+                builder.append(strings[random.nextInt(strings.length)]);
+            } else if (kind == 3) {
+                builder.append(operators[random.nextInt(operators.length)]);
+            } else {
+                int spaces = 1 + random.nextInt(4);
+                for (int i = 0; i < spaces; i++) {
+                    builder.append(' ');
+                }
+                continue;
+            }
+            builder.append(' ');
+        }
+        return builder.toString();
+    }
+
+    private void appendNumber(StringBuilder builder, Random random) {
+        int len = 1 + random.nextInt(10);
+        for (int i = 0; i < len; i++) {
+            builder.append((char) ('0' + random.nextInt(10)));
+        }
     }
 
     private static final class Result {
