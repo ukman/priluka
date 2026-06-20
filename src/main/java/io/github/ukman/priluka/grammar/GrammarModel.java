@@ -46,4 +46,8 @@ public final class GrammarModel {
         }
         return builder.toString();
     }
+
+    public List<PredictionConflict> findPredictionConflicts() {
+        return Collections.unmodifiableList(new PredictionConflictAnalyzer(this).findConflicts());
+    }
 }

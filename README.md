@@ -81,6 +81,8 @@ Implemented:
 - `Parser.initFromOuterClass(...).describe(...)`
 - compact `GrammarModel`
 - BNF-like diagnostics through `GrammarModel.toBnf()`
+- LL-style prediction conflict diagnostics through
+  `GrammarModel.findPredictionConflicts()`
 - reflection discovery for constructor productions
 - multiple constructors as alternatives
 - interface alternatives inside an explicit class universe
@@ -385,6 +387,25 @@ Grammar.S s = Parser
 
 In this mode, all nested classes of `Grammar` form the grammar class universe.
 This keeps small grammars self-contained and avoids global classpath scanning.
+
+## Grammar Diagnostics
+
+The discovered grammar can be inspected before parsing:
+
+```java
+GrammarModel model = Parser
+    .init(Expression.class, NumberExpression.class, StringExpression.class)
+    .describe(Expression.class);
+
+String bnf = model.toBnf();
+List<PredictionConflict> conflicts = model.findPredictionConflicts();
+```
+
+`findPredictionConflicts()` reports LL-style decision table conflicts: a
+nonterminal, a lookahead terminal, and the production rules that can all start
+from that lookahead. This does not make the grammar invalid by itself because
+the reflective parser can still backtrack, but it highlights places where the
+grammar is not predictively deterministic.
 
 ## Nonterminals
 

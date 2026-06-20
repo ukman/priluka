@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class GrammarModelBuilderTest {
 
@@ -105,6 +106,48 @@ class GrammarModelBuilderTest {
         GrammarModel model = Parser.describe(IdentifierExpression.class);
 
         assertEquals(13, model.getTerminals().get(0).getPriority());
+    }
+
+    @Test
+    void reportsPredictionConflictForSameLookaheadAlternatives() {
+        GrammarModel model = Parser
+            .init(ConflictingValue.class, FirstIntegerValue.class, SecondIntegerValue.class)
+            .describe(ConflictingValue.class);
+
+        List<PredictionConflict> conflicts = model.findPredictionConflicts();
+
+        assertEquals(1, conflicts.size());
+        assertEquals("ConflictingValue", conflicts.get(0).getNonterminal().getName());
+        assertEquals("Integer", conflicts.get(0).getLookaheadName());
+        assertEquals(2, conflicts.get(0).getProductions().size());
+        assertEquals(
+            "ConflictingValue conflicts on Integer: "
+                + "ConflictingValue => FirstIntegerValue | ConflictingValue => SecondIntegerValue",
+            conflicts.get(0).toString()
+        );
+    }
+
+    @Test
+    void reportsNoPredictionConflictForDistinctLookaheadAlternatives() {
+        GrammarModel model = Parser
+            .init(DistinctValue.class, IntegerValue.class, TextValue.class)
+            .describe(DistinctValue.class);
+
+        assertTrue(model.findPredictionConflicts().isEmpty());
+    }
+
+    @Test
+    void reportsPredictionConflictBetweenNullableProductionAndFollow() {
+        GrammarModel model = Parser
+            .init(NullableConflictStart.class, NullableTail.class, CommaTail.class, EmptyTail.class, Comma.class)
+            .describe(NullableConflictStart.class);
+
+        List<PredictionConflict> conflicts = model.findPredictionConflicts();
+
+        assertEquals(1, conflicts.size());
+        assertEquals("NullableTail", conflicts.get(0).getNonterminal().getName());
+        assertEquals("Comma", conflicts.get(0).getLookaheadName());
+        assertEquals(2, conflicts.get(0).getProductions().size());
     }
 
     static class Point {
@@ -211,5 +254,47 @@ class GrammarModelBuilderTest {
 
     @Terminal(regexp = "[A-Za-z_][A-Za-z0-9_]*", priority = 13)
     static class Id {
+    }
+
+    interface ConflictingValue {
+    }
+
+    static class FirstIntegerValue implements ConflictingValue {
+        public FirstIntegerValue(Integer value) {
+        }
+    }
+
+    static class SecondIntegerValue implements ConflictingValue {
+        public SecondIntegerValue(Integer value) {
+        }
+    }
+
+    interface DistinctValue {
+    }
+
+    static class IntegerValue implements DistinctValue {
+        public IntegerValue(Integer value) {
+        }
+    }
+
+    static class TextValue implements DistinctValue {
+        public TextValue(TextKeyword text) {
+        }
+    }
+
+    static class NullableConflictStart {
+        public NullableConflictStart(NullableTail tail, Comma comma) {
+        }
+    }
+
+    interface NullableTail {
+    }
+
+    static class CommaTail implements NullableTail {
+        public CommaTail(Comma comma) {
+        }
+    }
+
+    static class EmptyTail implements NullableTail {
     }
 }
