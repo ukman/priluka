@@ -3,6 +3,7 @@ package io.github.ukman.priluka.internal.lexer;
 import io.github.ukman.priluka.grammar.TerminalSymbol;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -79,8 +80,12 @@ public final class Lexer {
         if (options.isCollectAmbiguousTerminalTypes()) {
             terminalTypes = matchingTerminals(text);
         } else {
-            terminalTypes = new ArrayList<TerminalSymbol>();
-            terminalTypes.add(branch.getTerminal());
+            if (options.isKeywordCarrierOptimization()) {
+                terminalTypes = new ArrayList<TerminalSymbol>();
+                terminalTypes.add(branch.getTerminal());
+            } else {
+                terminalTypes = Collections.singletonList(branch.getTerminal());
+            }
         }
         if (options.isKeywordCarrierOptimization()) {
             keywordCarrierIndex.addKeywordMatches(text, terminalTypes);

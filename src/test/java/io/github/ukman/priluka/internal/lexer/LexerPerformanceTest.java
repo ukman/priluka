@@ -47,7 +47,7 @@ class LexerPerformanceTest {
                 regexp(QuotedString.class, "\"([^\"\\\\]|\\\\.)*\"", false, 0),
                 regexp(Operator.class, "[+\\-=()\\[\\]{}.,*/?]", false, 0)
             )),
-            LexerOptions.DEFAULT
+            new LexerOptions(false, true)
         );
 
         Result strict = measure("strict", strictLexer, input);

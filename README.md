@@ -118,8 +118,12 @@ The benchmark compares:
 
 - strict lexer mode: no duplicate terminal recheck, each lexeme has one terminal
   type
-- multi-variant lexer mode: identifier/keyword ambiguity and same-span terminal
-  collection enabled
+- multi-variant lexer mode: identifier/keyword ambiguity through keyword carrier
+  maps, without full duplicate-regexp recheck
+
+The full same-span duplicate-regexp recheck is intentionally not part of this
+baseline because it is much slower and should be reserved for grammars that
+need general overlapping terminals beyond the common `Id`/keyword case.
 
 ## Design Direction
 
