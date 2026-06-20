@@ -90,6 +90,7 @@ Implemented:
 - internal NFA recognizer for accept/reject simulation
 - NFA accepting-path trace reconstruction for the supported v1 subset
 - internal `NfaParseEngine` adapter for the shared parse-engine contract
+- automatic public parser fast-path selection for NFA-compatible grammars
 - reflection discovery for constructor productions
 - multiple constructors as alternatives
 - interface alternatives inside an explicit class universe
@@ -119,7 +120,6 @@ Implemented:
 
 Not implemented yet:
 
-- public fast-path selection between reflective parser and NFA parser
 - ambiguity diagnostics for multiple accepting NFA paths
 
 Manual lexer benchmark:
@@ -1435,7 +1435,9 @@ transitions, and variable-part semantic transitions for optional and repeated
 parts. The internal `NfaRecognizer` can run simulation over the token stream
 and reconstruct a `ParseTrace` from the accepting path. `NfaParseEngine` adapts
 that recognizer to the same `ParseEngine` contract used by the reflective
-parser.
+parser. The public `Parser` now chooses this NFA path automatically when the
+grammar is compatible with the NFA v1 subset, and falls back to the reflective
+parser for recursive or otherwise unsupported grammars.
 
 ### Parse Trace And Object Construction
 

@@ -79,6 +79,15 @@ class ParserTest {
     }
 
     @Test
+    void parserUsesNfaCompatibleFastPathThroughPublicApi() {
+        ParseTraceResult<FastPathList> result = Parser.trace(FastPathList.class, "1,2,3");
+
+        assertEquals(3, result.getValue().numbers.length);
+        assertEquals(Integer.valueOf(1), result.getValue().numbers[0]);
+        assertEquals(ParseTraceEvent.Kind.BEGIN_REPEAT, result.getTrace().getEvents().get(1).getKind());
+    }
+
+    @Test
     void parsesInterfaceAlternativeFromInitializedUniverse() {
         Expression expression = Parser
             .init(Expression.class, NumberExpression.class)
@@ -134,6 +143,18 @@ class ParserTest {
             this.x = x;
             this.y = y;
         }
+    }
+
+    static class FastPathList {
+        final Integer[] numbers;
+
+        FastPathList(@io.github.ukman.priluka.annotation.Separator(Comma.class) Integer[] numbers) {
+            this.numbers = numbers;
+        }
+    }
+
+    @Keyword(",")
+    static class Comma {
     }
 
     interface Expression {

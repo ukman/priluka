@@ -2,6 +2,7 @@ package io.github.ukman.priluka;
 
 import io.github.ukman.priluka.grammar.GrammarModel;
 import io.github.ukman.priluka.internal.GrammarModelBuilder;
+import io.github.ukman.priluka.internal.nfa.NfaParseEngine;
 import io.github.ukman.priluka.internal.parser.ParseEngine;
 import io.github.ukman.priluka.internal.parser.ReflectiveParser;
 import io.github.ukman.priluka.internal.parser.TraceObjectBuilder;
@@ -50,7 +51,7 @@ public final class Parser {
 
         public <S> ParseTraceResult<S> trace(Class<S> start, String input) {
             GrammarModel model = describe(start);
-            ParseEngine engine = new ReflectiveParser(model);
+            ParseEngine engine = parseEngine(model);
             ParseTrace trace = engine.parseTrace(start, input);
             return new ParseTraceResult<S>(new TraceObjectBuilder().build(start, trace), trace);
         }
@@ -61,6 +62,13 @@ public final class Parser {
 
         public GrammarModel describe(Class<?> start) {
             return new GrammarModelBuilder(classes).build(start);
+        }
+
+        private ParseEngine parseEngine(GrammarModel model) {
+            if (model.checkNfaCompatibility().isSupported()) {
+                return new NfaParseEngine(model);
+            }
+            return new ReflectiveParser(model);
         }
     }
 }
