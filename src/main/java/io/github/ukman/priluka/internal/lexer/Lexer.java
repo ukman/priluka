@@ -72,8 +72,8 @@ public final class Lexer {
                 throw new LexerException("Unexpected input at offset " + position + ": " + input.charAt(position));
             }
 
-            String text = matcher.group();
-            if (text.length() == 0) {
+            int end = matcher.end();
+            if (end == position) {
                 throw new LexerException("Lexer pattern matched empty text at offset " + position);
             }
 
@@ -85,7 +85,7 @@ public final class Lexer {
             if (!branch.getTerminal().isSkip()) {
                 tokenCount++;
             }
-            position += text.length();
+            position = end;
         }
         return tokenCount;
     }

@@ -33,7 +33,7 @@ public final class MasterPattern {
 
     public TerminalBranch getMatchedBranch(java.util.regex.Matcher matcher) {
         for (TerminalBranch branch : branches) {
-            if (matcher.group(branch.getGroupName()) != null) {
+            if (matcher.start(branch.getGroupIndex()) >= 0) {
                 return branch;
             }
         }

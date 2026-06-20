@@ -49,6 +49,18 @@ class MasterPatternBuilderTest {
     }
 
     @Test
+    void detectsBranchAfterTerminalWithInternalCapturingGroup() {
+        MasterPattern pattern = build(
+            regexp(QuotedString.class, "\"([^\"\\\\]|\\\\.)*\"", 0),
+            regexp(Id.class, "[A-Za-z_][A-Za-z0-9_]*", 0)
+        );
+        Matcher matcher = pattern.getPattern().matcher("alpha");
+
+        assertTrue(matcher.lookingAt());
+        assertEquals(Id.class, pattern.getMatchedBranch(matcher).getTerminal().getType());
+    }
+
+    @Test
     void lexemeModelKeepsSpanTypesAndSkipFlag() {
         Lexeme lexeme = new Lexeme(
             3,
@@ -89,6 +101,9 @@ class MasterPatternBuilderTest {
     }
 
     static class ElseIf {
+    }
+
+    static class QuotedString {
     }
 
 }

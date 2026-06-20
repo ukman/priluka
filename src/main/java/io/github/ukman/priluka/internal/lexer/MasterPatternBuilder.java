@@ -14,14 +14,18 @@ public final class MasterPatternBuilder {
 
         List<TerminalBranch> branches = new ArrayList<TerminalBranch>();
         StringBuilder pattern = new StringBuilder();
+        int nextGroupIndex = 1;
         for (int i = 0; i < terminals.size(); i++) {
             TerminalSymbol terminal = terminals.get(i);
             String groupName = "T" + i;
+            int groupIndex = nextGroupIndex;
+            String regex = regexFor(terminal);
             if (pattern.length() > 0) {
                 pattern.append('|');
             }
-            pattern.append("(?<").append(groupName).append(">(?:").append(regexFor(terminal)).append("))");
-            branches.add(new TerminalBranch(groupName, terminal));
+            pattern.append("((?:").append(regex).append("))");
+            branches.add(new TerminalBranch(groupName, groupIndex, terminal));
+            nextGroupIndex += 1 + countCapturingGroups(regex);
         }
 
         return new MasterPattern(Pattern.compile(pattern.toString()), branches);
@@ -36,6 +40,53 @@ public final class MasterPatternBuilder {
             return quoted;
         }
         return terminal.getPattern();
+    }
+
+    private int countCapturingGroups(String regex) {
+        int count = 0;
+        boolean escaped = false;
+        boolean inCharacterClass = false;
+        for (int i = 0; i < regex.length(); i++) {
+            char c = regex.charAt(i);
+            if (escaped) {
+                escaped = false;
+                continue;
+            }
+            if (c == '\\') {
+                escaped = true;
+                continue;
+            }
+            if (c == '[') {
+                inCharacterClass = true;
+                continue;
+            }
+            if (c == ']') {
+                inCharacterClass = false;
+                continue;
+            }
+            if (inCharacterClass || c != '(') {
+                continue;
+            }
+            if (i + 1 < regex.length() && regex.charAt(i + 1) == '?') {
+                if (isNamedCapturingGroup(regex, i)) {
+                    count++;
+                }
+                continue;
+            }
+            count++;
+        }
+        return count;
+    }
+
+    private boolean isNamedCapturingGroup(String regex, int groupStart) {
+        if (groupStart + 3 >= regex.length()) {
+            return false;
+        }
+        if (regex.charAt(groupStart + 1) != '?' || regex.charAt(groupStart + 2) != '<') {
+            return false;
+        }
+        char firstNameChar = regex.charAt(groupStart + 3);
+        return firstNameChar != '=' && firstNameChar != '!';
     }
 
     static final class TerminalOrder implements Comparator<TerminalSymbol> {
