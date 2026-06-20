@@ -185,6 +185,26 @@ class LexerTest {
         assertSameLexemes(javaRegexLexemes, bricsLexemes);
     }
 
+    @Test
+    void asciiWordLexerAddsKeywordTypesAndSkipsNonLetters() {
+        Lexer lexer = Lexers.asciiWord(
+            new LexerSpec(Arrays.asList(
+                keywordSet(Verb3Form.class, "[sS][tT][aA][rR][tT][eE][dD]", false, "started"),
+                regexp(Word.class, "[A-Za-z]+", false, 0)
+            )),
+            Word.class
+        );
+
+        List<Lexeme> lexemes = lexer.tokenize("42 STARTED, later");
+
+        assertEquals(2, lexemes.size());
+        assertEquals("STARTED", lexemes.get(0).getText());
+        assertTrue(lexemes.get(0).hasTerminal(Word.class));
+        assertTrue(lexemes.get(0).hasTerminal(Verb3Form.class));
+        assertEquals("later", lexemes.get(1).getText());
+        assertTrue(lexemes.get(1).hasTerminal(Word.class));
+    }
+
     static Stream<LexerFactory> lexerFactories() {
         return Stream.of(
             new LexerFactory() {

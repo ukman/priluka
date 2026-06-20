@@ -27,4 +27,8 @@ public final class Lexers {
     public static Lexer javaRegex(LexerSpec spec, LexerOptions options) {
         return new JavaRegexLexer(spec, options);
     }
+
+    public static Lexer asciiWord(LexerSpec spec, Class<?> wordTerminalType) {
+        return new AsciiWordLexer(spec, wordTerminalType);
+    }
 }
