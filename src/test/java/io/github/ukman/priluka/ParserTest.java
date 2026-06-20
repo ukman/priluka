@@ -37,11 +37,24 @@ class ParserTest {
         assertEquals(Integer.valueOf(456), result.getValue().x);
         assertEquals(Integer.valueOf(78), result.getValue().y);
 
-        List<String> events = result.getTrace().getEvents();
-        assertEquals("beginProduction(Point => Integer Integer)", events.get(0));
-        assertEquals("consumeTerminal(Integer, \"456\", start=0, len=3)", events.get(1));
-        assertEquals("consumeTerminal(Integer, \"78\", start=4, len=2)", events.get(2));
-        assertEquals("endProduction(Point => Integer Integer)", events.get(3));
+        List<ParseTraceEvent> events = result.getTrace().getEvents();
+        assertEquals(ParseTraceEvent.Kind.BEGIN_PRODUCTION, events.get(0).getKind());
+        assertEquals("Point => Integer Integer", events.get(0).getProduction().toBnf());
+        assertEquals(ParseTraceEvent.Kind.CONSUME_TERMINAL, events.get(1).getKind());
+        assertEquals(Integer.class, events.get(1).getTerminalType());
+        assertEquals("456", events.get(1).getText());
+        assertEquals(0, events.get(1).getStart());
+        assertEquals(3, events.get(1).getLen());
+        assertEquals(ParseTraceEvent.Kind.CONSUME_TERMINAL, events.get(2).getKind());
+        assertEquals("78", events.get(2).getText());
+        assertEquals(ParseTraceEvent.Kind.END_PRODUCTION, events.get(3).getKind());
+        assertEquals(
+            "beginProduction(Point => Integer Integer)" + System.lineSeparator()
+                + "consumeTerminal(Integer, \"456\", start=0, len=3)" + System.lineSeparator()
+                + "consumeTerminal(Integer, \"78\", start=4, len=2)" + System.lineSeparator()
+                + "endProduction(Point => Integer Integer)",
+            result.getTrace().toString()
+        );
     }
 
     @Test

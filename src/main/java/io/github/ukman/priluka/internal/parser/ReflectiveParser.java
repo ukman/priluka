@@ -2,6 +2,7 @@ package io.github.ukman.priluka.internal.parser;
 
 import io.github.ukman.priluka.ParseException;
 import io.github.ukman.priluka.ParseTrace;
+import io.github.ukman.priluka.ParseTraceEvent;
 import io.github.ukman.priluka.ParseTraceResult;
 import io.github.ukman.priluka.Token;
 import io.github.ukman.priluka.grammar.GrammarModel;
@@ -168,7 +169,7 @@ public final class ReflectiveParser {
             }
             for (int i = productions.size() - 1; i >= 0; i--) {
                 List<ParseState> states = new ArrayList<ParseState>();
-                states.add(new ParseState(position, new ArrayList<Object>(), new ArrayList<String>()));
+                states.add(new ParseState(position, new ArrayList<Object>(), new ArrayList<ParseTraceEvent>()));
                 frames.push(new ProductionFrame(productions.get(i), lexemes, 0, states, sink, depth));
             }
         }
@@ -263,7 +264,7 @@ public final class ReflectiveParser {
         private void addNextState(List<ParseState> nextStates, ParseState state, ParseResult partResult) {
             List<Object> values = new ArrayList<Object>(state.values);
             values.add(partResult.value);
-            List<String> events = new ArrayList<String>(state.events);
+            List<ParseTraceEvent> events = new ArrayList<ParseTraceEvent>(state.events);
             events.addAll(partResult.events);
             nextStates.add(new ParseState(partResult.position, values, events));
         }
@@ -297,19 +298,19 @@ public final class ReflectiveParser {
         int position
     ) {
         List<ParseResult> results = new ArrayList<ParseResult>();
-        List<String> absentEvents = new ArrayList<String>();
-        absentEvents.add("beginOptional(" + part.getSymbolName() + ")");
-        absentEvents.add("endOptional(" + part.getSymbolName() + ", absent)");
+        List<ParseTraceEvent> absentEvents = new ArrayList<ParseTraceEvent>();
+        absentEvents.add(ParseTraceEvent.beginOptional(part.getSymbolName()));
+        absentEvents.add(ParseTraceEvent.endOptional(part.getSymbolName(), false));
         results.add(new ParseResult(optionalValue(targetType, null, false), position, absentEvents));
         List<ParseResult> presentResults = parseSymbol(part.getSymbolType(), lexemes, position);
         for (ParseResult presentResult : presentResults) {
             if (presentResult.position == position) {
                 continue;
             }
-            List<String> presentEvents = new ArrayList<String>();
-            presentEvents.add("beginOptional(" + part.getSymbolName() + ")");
+            List<ParseTraceEvent> presentEvents = new ArrayList<ParseTraceEvent>();
+            presentEvents.add(ParseTraceEvent.beginOptional(part.getSymbolName()));
             presentEvents.addAll(presentResult.events);
-            presentEvents.add("endOptional(" + part.getSymbolName() + ", present)");
+            presentEvents.add(ParseTraceEvent.endOptional(part.getSymbolName(), true));
             results.add(new ParseResult(
                 optionalValue(targetType, presentResult.value, true),
                 presentResult.position,
@@ -338,13 +339,13 @@ public final class ReflectiveParser {
         int position
     ) {
         List<RepeatedState> active = new ArrayList<RepeatedState>();
-        active.add(new RepeatedState(position, new ArrayList<Object>(), new ArrayList<String>()));
+        active.add(new RepeatedState(position, new ArrayList<Object>(), new ArrayList<ParseTraceEvent>()));
 
         List<ParseResult> results = new ArrayList<ParseResult>();
         if (part.getQuantifier() == ProductionPart.Quantifier.ZERO_OR_MORE) {
-            List<String> emptyEvents = new ArrayList<String>();
-            emptyEvents.add("beginRepeat(" + part.getSymbolName() + ")");
-            emptyEvents.add("endRepeat(" + part.getSymbolName() + ", count=0)");
+            List<ParseTraceEvent> emptyEvents = new ArrayList<ParseTraceEvent>();
+            emptyEvents.add(ParseTraceEvent.beginRepeat(part.getSymbolName()));
+            emptyEvents.add(ParseTraceEvent.endRepeat(part.getSymbolName(), 0));
             results.add(new ParseResult(
                 repeatedValue(part.getSymbolType(), targetType, new ArrayList<Object>()),
                 position,
@@ -362,9 +363,9 @@ public final class ReflectiveParser {
                     }
                     List<Object> items = new ArrayList<Object>(state.items);
                     items.add(itemResult.value);
-                    List<String> events = new ArrayList<String>(state.events);
+                    List<ParseTraceEvent> events = new ArrayList<ParseTraceEvent>(state.events);
                     events.addAll(itemResult.events);
-                    events.add("appendRepeatElement(" + part.getSymbolName() + ")");
+                    events.add(ParseTraceEvent.appendRepeatElement(part.getSymbolName()));
                     results.add(new ParseResult(
                         repeatedValue(part.getSymbolType(), targetType, items),
                         itemResult.position,
@@ -387,9 +388,9 @@ public final class ReflectiveParser {
     ) {
         List<ParseResult> results = new ArrayList<ParseResult>();
         if (part.getQuantifier() == ProductionPart.Quantifier.ZERO_OR_MORE) {
-            List<String> emptyEvents = new ArrayList<String>();
-            emptyEvents.add("beginRepeat(" + part.getSymbolName() + ")");
-            emptyEvents.add("endRepeat(" + part.getSymbolName() + ", count=0)");
+            List<ParseTraceEvent> emptyEvents = new ArrayList<ParseTraceEvent>();
+            emptyEvents.add(ParseTraceEvent.beginRepeat(part.getSymbolName()));
+            emptyEvents.add(ParseTraceEvent.endRepeat(part.getSymbolName(), 0));
             results.add(new ParseResult(
                 repeatedValue(part.getSymbolType(), targetType, new ArrayList<Object>()),
                 position,
@@ -405,9 +406,9 @@ public final class ReflectiveParser {
             }
             List<Object> items = new ArrayList<Object>();
             items.add(firstItem.value);
-            List<String> events = new ArrayList<String>();
+            List<ParseTraceEvent> events = new ArrayList<ParseTraceEvent>();
             events.addAll(firstItem.events);
-            events.add("appendRepeatElement(" + part.getSymbolName() + ")");
+            events.add(ParseTraceEvent.appendRepeatElement(part.getSymbolName()));
             results.add(new ParseResult(
                 repeatedValue(part.getSymbolType(), targetType, items),
                 firstItem.position,
@@ -426,7 +427,7 @@ public final class ReflectiveParser {
                     }
                     List<ParseResult> itemResults = parseSymbol(part.getSymbolType(), lexemes, separator.position);
                     if (itemResults.isEmpty() && part.isTrailingSeparator()) {
-                        List<String> events = new ArrayList<String>(state.events);
+                        List<ParseTraceEvent> events = new ArrayList<ParseTraceEvent>(state.events);
                         events.addAll(separator.events);
                         results.add(new ParseResult(
                             repeatedValue(part.getSymbolType(), targetType, state.items),
@@ -440,10 +441,10 @@ public final class ReflectiveParser {
                         }
                         List<Object> items = new ArrayList<Object>(state.items);
                         items.add(itemResult.value);
-                        List<String> events = new ArrayList<String>(state.events);
+                        List<ParseTraceEvent> events = new ArrayList<ParseTraceEvent>(state.events);
                         events.addAll(separator.events);
                         events.addAll(itemResult.events);
-                        events.add("appendRepeatElement(" + part.getSymbolName() + ")");
+                        events.add(ParseTraceEvent.appendRepeatElement(part.getSymbolName()));
                         results.add(new ParseResult(
                             repeatedValue(part.getSymbolType(), targetType, items),
                             itemResult.position,
@@ -466,11 +467,11 @@ public final class ReflectiveParser {
         return parseNonterminal(type, lexemes, position);
     }
 
-    private List<String> repeatEvents(String symbolName, List<String> bodyEvents, int count) {
-        List<String> events = new ArrayList<String>();
-        events.add("beginRepeat(" + symbolName + ")");
+    private List<ParseTraceEvent> repeatEvents(String symbolName, List<ParseTraceEvent> bodyEvents, int count) {
+        List<ParseTraceEvent> events = new ArrayList<ParseTraceEvent>();
+        events.add(ParseTraceEvent.beginRepeat(symbolName));
         events.addAll(bodyEvents);
-        events.add("endRepeat(" + symbolName + ", count=" + count + ")");
+        events.add(ParseTraceEvent.endRepeat(symbolName, count));
         return events;
     }
 
@@ -552,11 +553,11 @@ public final class ReflectiveParser {
         return emitted;
     }
 
-    private List<String> productionEvents(Production production, List<String> childEvents) {
-        List<String> events = new ArrayList<String>();
-        events.add("beginProduction(" + production.toBnf() + ")");
+    private List<ParseTraceEvent> productionEvents(Production production, List<ParseTraceEvent> childEvents) {
+        List<ParseTraceEvent> events = new ArrayList<ParseTraceEvent>();
+        events.add(ParseTraceEvent.beginProduction(production));
         events.addAll(childEvents);
-        events.add("endProduction(" + production.toBnf() + ")");
+        events.add(ParseTraceEvent.endProduction(production));
         return events;
     }
 
@@ -629,24 +630,10 @@ public final class ReflectiveParser {
         if (debug) {
             debugStats.terminalMatches++;
         }
-        List<String> events = new ArrayList<String>();
-        events.add(
-            "consumeTerminal("
-                + type.getSimpleName()
-                + ", \""
-                + escapeEventText(lexeme.getText())
-                + "\", start="
-                + lexeme.getStart()
-                + ", len="
-                + lexeme.getLen()
-                + ")"
-        );
+        List<ParseTraceEvent> events = new ArrayList<ParseTraceEvent>();
+        events.add(ParseTraceEvent.consumeTerminal(type, lexeme.getText(), lexeme.getStart(), lexeme.getLen()));
         results.add(new ParseResult(terminalValue(type, lexeme), position + 1, events));
         return results;
-    }
-
-    private String escapeEventText(String text) {
-        return text.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private Object instantiateProduction(Production production, List<Object> values) {
@@ -748,9 +735,9 @@ public final class ReflectiveParser {
     private static final class ParseState {
         private final int position;
         private final List<Object> values;
-        private final List<String> events;
+        private final List<ParseTraceEvent> events;
 
-        private ParseState(int position, List<Object> values, List<String> events) {
+        private ParseState(int position, List<Object> values, List<ParseTraceEvent> events) {
             this.position = position;
             this.values = values;
             this.events = events;
@@ -760,9 +747,9 @@ public final class ReflectiveParser {
     private static final class RepeatedState {
         private final int position;
         private final List<Object> items;
-        private final List<String> events;
+        private final List<ParseTraceEvent> events;
 
-        private RepeatedState(int position, List<Object> items, List<String> events) {
+        private RepeatedState(int position, List<Object> items, List<ParseTraceEvent> events) {
             this.position = position;
             this.items = items;
             this.events = events;
@@ -772,9 +759,9 @@ public final class ReflectiveParser {
     private static final class ParseResult {
         private final Object value;
         private final int position;
-        private final List<String> events;
+        private final List<ParseTraceEvent> events;
 
-        private ParseResult(Object value, int position, List<String> events) {
+        private ParseResult(Object value, int position, List<ParseTraceEvent> events) {
             this.value = value;
             this.position = position;
             this.events = events;

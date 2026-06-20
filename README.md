@@ -100,7 +100,7 @@ Implemented:
 - keyword carrier optimization for keywords covered by terminals such as `Id`
 - manual lexer performance baseline test
 - real `Parser.parse(...)` v1 through a reflective backtracking parser
-- parse trace events through `Parser.trace(...)`
+- typed parse trace events through `Parser.trace(...)`
 - object construction for constructor productions with single parts
 - built-in terminal conversion for `Integer`, `Double`, and `Boolean`
 - enum terminal conversion to enum constants
@@ -1421,6 +1421,7 @@ ParseTraceResult<Point> result = Parser.trace(Point.class, "456 78");
 
 Point point = result.getValue();
 ParseTrace trace = result.getTrace();
+List<ParseTraceEvent> events = trace.getEvents();
 ```
 
 The NFA engine will need the same idea internally.

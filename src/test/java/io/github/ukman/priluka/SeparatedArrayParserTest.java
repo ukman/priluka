@@ -109,12 +109,12 @@ class SeparatedArrayParserTest {
             .init(ListNumberCollection.class, Comma.class)
             .trace(ListNumberCollection.class, "3,4");
 
-        List<String> events = result.getTrace().getEvents();
+        List<ParseTraceEvent> events = result.getTrace().getEvents();
         assertEquals(Arrays.asList(3, 4), result.getValue().values);
-        assertEquals(true, events.contains("beginRepeat(Integer)"));
-        assertEquals(true, events.contains("appendRepeatElement(Integer)"));
-        assertEquals(true, events.contains("endRepeat(Integer, count=2)"));
-        assertEquals(true, events.contains("consumeTerminal(Comma, \",\", start=1, len=1)"));
+        assertEquals(true, hasEvent(events, ParseTraceEvent.Kind.BEGIN_REPEAT, "Integer"));
+        assertEquals(true, hasEvent(events, ParseTraceEvent.Kind.APPEND_REPEAT_ELEMENT, "Integer"));
+        assertEquals(true, hasEndRepeat(events, "Integer", 2));
+        assertEquals(true, hasTerminal(events, Comma.class, ",", 1, 1));
     }
 
     static class ListNumbers {
@@ -165,6 +165,45 @@ class SeparatedArrayParserTest {
 
     @Keyword("-")
     static class Minus {
+    }
+
+    private boolean hasEvent(List<ParseTraceEvent> events, ParseTraceEvent.Kind kind, String symbolName) {
+        for (ParseTraceEvent event : events) {
+            if (event.getKind() == kind && symbolName.equals(event.getSymbolName())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasEndRepeat(List<ParseTraceEvent> events, String symbolName, int count) {
+        for (ParseTraceEvent event : events) {
+            if (event.getKind() == ParseTraceEvent.Kind.END_REPEAT
+                && symbolName.equals(event.getSymbolName())
+                && Integer.valueOf(count).equals(event.getCount())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasTerminal(
+        List<ParseTraceEvent> events,
+        Class<?> terminalType,
+        String text,
+        int start,
+        int len
+    ) {
+        for (ParseTraceEvent event : events) {
+            if (event.getKind() == ParseTraceEvent.Kind.CONSUME_TERMINAL
+                && terminalType.equals(event.getTerminalType())
+                && text.equals(event.getText())
+                && event.getStart() == start
+                && event.getLen() == len) {
+                return true;
+            }
+        }
+        return false;
     }
 
     interface ThrowingRunnable extends org.junit.jupiter.api.function.Executable {

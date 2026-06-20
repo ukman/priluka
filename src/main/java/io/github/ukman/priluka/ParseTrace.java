@@ -5,13 +5,13 @@ import java.util.Collections;
 import java.util.List;
 
 public final class ParseTrace {
-    private final List<String> events;
+    private final List<ParseTraceEvent> events;
 
-    public ParseTrace(List<String> events) {
-        this.events = Collections.unmodifiableList(new ArrayList<String>(events));
+    public ParseTrace(List<ParseTraceEvent> events) {
+        this.events = Collections.unmodifiableList(new ArrayList<ParseTraceEvent>(events));
     }
 
-    public List<String> getEvents() {
+    public List<ParseTraceEvent> getEvents() {
         return events;
     }
 
