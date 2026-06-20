@@ -156,6 +156,39 @@ numbers, quoted strings, and one-character operators:
 \s+|[A-Za-z_][A-Za-z0-9_]*|[0-9]+|"([^"\\]|\\.)*"|[+\-=()\[\]{}.,*/?]
 ```
 
+Manual regex engine comparison:
+
+```bash
+mvn -Dpriluka.perf=true \
+    -Dtest=RegexEngineComparisonPerformanceTest \
+    -Dpriluka.perf.bytes=5242880 \
+    -Dpriluka.perf.warmup=3 \
+    -Dpriluka.perf.runs=5 \
+    test
+```
+
+This benchmark tokenizes the same generated mixed stream and determines token
+type for every lexeme:
+
+- `java.util.regex` as one master regexp with capture groups
+- `RE2/J` as one master regexp with capture groups
+- `dk.brics.automaton` as one `RunAutomaton` per token type, choosing the
+  longest match at the current position
+
+Current local result on the 5 MiB generated stream:
+
+```text
+java.util.regex master: bytes=5242883 tokens=668585 avg=0.1423s speed=35.13 MiB/s
+RE2/J master: bytes=5242883 tokens=668585 avg=2.6879s speed=1.86 MiB/s
+dk.brics per-token: bytes=5242883 tokens=668585 avg=0.0756s speed=66.18 MiB/s
+```
+
+This does not yet prove that brics is the final lexer implementation, because
+the test uses only five token families and brics is not using one tagged master
+automaton here. It does show that precompiled deterministic automata are a
+serious candidate for the fast lexer path, while RE2/J is not attractive for
+this particular Java master-regexp tokenization shape.
+
 ## Design Direction
 
 - A grammar is primarily described by Java classes.
