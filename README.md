@@ -90,10 +90,12 @@ Implemented:
 - internal lexer `Lexeme` model
 - internal master-regexp builder with lexer priority ordering
 - keyword branch quoting in master regexps
+- lexer tokenization loop with same-span terminal recheck
+- skip-token filtering
 
 Not implemented yet:
 
-- lexer tokenization loop
+- keyword carrier optimization
 - NFA compiler
 - NFA simulation
 - parse trace
