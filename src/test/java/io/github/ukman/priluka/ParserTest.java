@@ -107,6 +107,15 @@ class ParserTest {
     }
 
     @Test
+    void parsesTerminalClassThroughInterfaceNonterminal() {
+        OperatorExpression expression = Parser
+            .init(OperatorExpression.class, Operator.class, Plus.class, Minus.class)
+            .parse(OperatorExpression.class, "-");
+
+        assertInstanceOf(Minus.class, expression.operator);
+    }
+
+    @Test
     void parsesAbstractClassAlternativeFromInitializedUniverse() {
         AstNode node = Parser
             .init(AstNode.class, TextNode.class, NumberNode.class)
@@ -183,6 +192,25 @@ class ParserTest {
         NumberExpression(Integer value) {
             this.value = value;
         }
+    }
+
+    static class OperatorExpression {
+        final Operator operator;
+
+        OperatorExpression(Operator operator) {
+            this.operator = operator;
+        }
+    }
+
+    interface Operator {
+    }
+
+    @Keyword("+")
+    static class Plus implements Operator {
+    }
+
+    @Keyword("-")
+    static class Minus implements Operator {
     }
 
     abstract static class AstNode {

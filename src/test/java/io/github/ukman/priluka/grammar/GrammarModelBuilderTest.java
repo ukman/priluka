@@ -51,6 +51,20 @@ class GrammarModelBuilderTest {
     }
 
     @Test
+    void describesTerminalImplementationsAsInterfaceAlternativesInsideUniverse() {
+        GrammarModel model = Parser
+            .init(Sign.class, Plus.class, Minus.class)
+            .describe(Sign.class);
+
+        assertEquals(
+            "Sign => Minus" + System.lineSeparator()
+                + "Sign => Plus",
+            model.toBnf()
+        );
+        assertEquals(2, model.getTerminals().size());
+    }
+
+    @Test
     void describesAbstractClassImplementationsAsAlternativesInsideUniverse() {
         GrammarModel model = Parser
             .init(AstNode.class, TextNode.class, NumberNode.class)
@@ -284,7 +298,14 @@ class GrammarModelBuilderTest {
     }
 
     @Keyword("-")
-    static class Minus {
+    static class Minus implements Sign {
+    }
+
+    interface Sign {
+    }
+
+    @Keyword("+")
+    static class Plus implements Sign {
     }
 
     static class IdentifierExpression {

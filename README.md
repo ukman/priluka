@@ -275,6 +275,9 @@ These conventions are not final decisions yet.
   production rules for that class.
 - For interface nonterminals, implementing classes describe alternative
   production rules.
+- Terminal classes can implement interfaces too; in that case the interface is
+  still a nonterminal, and each terminal implementation becomes an alternative
+  production for it.
 - Arrays, collections, and `Optional<T>` can describe EBNF-like repetition and
   optionality in constructor parameters.
 - The grammar class universe can be provided explicitly, or inferred from
@@ -713,6 +716,29 @@ Conceptually:
 AdditiveOperator => Plus
 AdditiveOperator => Minus
 BinaryExpression => Expression AdditiveOperator Expression
+```
+
+The same rule applies when the implementations are terminals:
+
+```java
+interface Sign {
+}
+
+@Keyword("+")
+class Plus implements Sign {
+}
+
+@Keyword("-")
+class Minus implements Sign {
+}
+```
+
+Conceptually, `Sign` is a nonterminal and the terminal classes are its
+alternatives:
+
+```text
+Sign => Plus
+Sign => Minus
 ```
 
 ## Terminals And Tokens
