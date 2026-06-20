@@ -4,6 +4,7 @@ import io.github.ukman.priluka.annotation.Keyword;
 import io.github.ukman.priluka.annotation.Separator;
 import io.github.ukman.priluka.grammar.GrammarModel;
 import io.github.ukman.priluka.internal.nfa.NfaParseEngine;
+import io.github.ukman.priluka.internal.nfa.NfaRecognizer;
 import io.github.ukman.priluka.internal.parser.ParseEngine;
 import io.github.ukman.priluka.internal.parser.ReflectiveParser;
 import io.github.ukman.priluka.internal.parser.TraceObjectBuilder;
@@ -103,6 +104,39 @@ class ParserPerformanceTest {
                 System.out.println();
             }
         }
+    }
+
+    @Test
+    void findsValidSqlQueriesInLargeTokenizableText() {
+        Assumptions.assumeTrue(
+            Boolean.getBoolean("priluka.perf"),
+            "Manual parser performance dump. Run with -Dpriluka.perf=true -Dtest=ParserPerformanceTest."
+        );
+
+        Parser.InitializedParser parser = Parser.initFromOuterClass(
+            SimplifiedSqlSelectParserTest.SimpleSqlGrammar.class
+        );
+        GrammarModel model = parser.describe(SimplifiedSqlSelectParserTest.SimpleSqlGrammar.SelectStatement.class);
+        NfaRecognizer recognizer = new NfaRecognizer(model);
+        String input = generatedSqlFindText(Integer.getInteger("priluka.parser.find.bytes", 100 * 1024));
+
+        for (int i = 0; i < WARMUP_RUNS; i++) {
+            assertFoundSqlCount(recognizer, input, 3);
+        }
+
+        long totalNanos = 0;
+        int found = 0;
+        for (int i = 0; i < MEASURE_RUNS; i++) {
+            long start = System.nanoTime();
+            found = recognizer.findAll(input).size();
+            totalNanos += System.nanoTime() - start;
+        }
+        if (found != 3) {
+            throw new AssertionError("Expected 3 valid SQL queries, found " + found);
+        }
+
+        double averageSeconds = (totalNanos / (double) MEASURE_RUNS) / 1_000_000_000.0;
+        System.out.println(new FindResult("sql-find", input.length(), found, averageSeconds));
     }
 
     private Result measurePublic(Parser.InitializedParser parser, String label, String input) {
@@ -287,6 +321,55 @@ class ParserPerformanceTest {
         return result.toString();
     }
 
+    private String generatedSqlFindText(int targetBytes) {
+        String[] valid = new String[] {
+            " select t1.name from table1 t1 join table2 t2 on t1.id=t2.id ",
+            " select p.*, t.name, t.firstname from db.person p left join db.team t on p.team_id=t.id ",
+            " select t0.col0, t1.col1 from table0 t0 right join table1 t1 on t0.id=t1.id outer join table2 t2 on t1.id=t2.id "
+        };
+        String[] invalid = new String[] {
+            " select , from broken0 ",
+            " select name , , from broken1 ",
+            " select . name from broken2 ",
+            " select * * from broken3 ",
+            " select from missing_list ",
+            " select name table_without_from ",
+            " select name from . broken4 ",
+            " select name from , broken5 ",
+            " select name from = broken6 ",
+            " select name from * broken7 "
+        };
+
+        StringBuilder result = new StringBuilder(targetBytes + 256);
+        int validIndex = 0;
+        int invalidIndex = 0;
+        int chunk = 0;
+        while (result.length() < targetBytes) {
+            result.append(" noise").append(chunk).append(" alpha beta gamma ");
+            if (invalidIndex < invalid.length && chunk % 4 == 1) {
+                result.append(invalid[invalidIndex++]);
+            }
+            if (validIndex < valid.length && chunk % 9 == 4) {
+                result.append(valid[validIndex++]);
+            }
+            chunk++;
+        }
+        while (invalidIndex < invalid.length) {
+            result.append(invalid[invalidIndex++]);
+        }
+        while (validIndex < valid.length) {
+            result.append(valid[validIndex++]);
+        }
+        return result.toString();
+    }
+
+    private void assertFoundSqlCount(NfaRecognizer recognizer, String input, int expected) {
+        int found = recognizer.findAll(input).size();
+        if (found != expected) {
+            throw new AssertionError("Expected " + expected + " valid SQL queries, found " + found);
+        }
+    }
+
     private String joinSpec(int index) {
         switch (index % 5) {
             case 1:
@@ -368,6 +451,34 @@ class ParserPerformanceTest {
                 Double.valueOf(averageSeconds),
                 Double.valueOf(mebibytesPerSecond),
                 Double.valueOf(valuesPerSecond)
+            );
+        }
+    }
+
+    private static final class FindResult {
+        private final String label;
+        private final int bytes;
+        private final int found;
+        private final double averageSeconds;
+        private final double mebibytesPerSecond;
+
+        private FindResult(String label, int bytes, int found, double averageSeconds) {
+            this.label = label;
+            this.bytes = bytes;
+            this.found = found;
+            this.averageSeconds = averageSeconds;
+            this.mebibytesPerSecond = (bytes / (1024.0 * 1024.0)) / averageSeconds;
+        }
+
+        @Override
+        public String toString() {
+            return String.format(
+                "%s bytes=%d valid=%d avg=%.4fs speed=%.2f MiB/s",
+                label,
+                Integer.valueOf(bytes),
+                Integer.valueOf(found),
+                Double.valueOf(averageSeconds),
+                Double.valueOf(mebibytesPerSecond)
             );
         }
     }

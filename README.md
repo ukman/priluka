@@ -1376,6 +1376,25 @@ join-heavy-sql cached-nfa-engine fields=1000 joins=100 bytes=16671 values=1001 a
 join-heavy-sql cached-reflective-engine fields=1000 joins=100 bytes=16671 values=1001 avg=0.2604s speed=0.06 MiB/s values=3844/s
 ```
 
+The same performance test can measure NFA find mode on a tokenizable 100 KiB
+text containing three valid simplified SQL queries and ten deliberately invalid
+`select` fragments:
+
+```bash
+mvn -Dpriluka.perf=true \
+    -Dtest=ParserPerformanceTest#findsValidSqlQueriesInLargeTokenizableText \
+    -Dpriluka.parser.find.bytes=102400 \
+    -Dpriluka.perf.warmup=1 \
+    -Dpriluka.perf.runs=1 \
+    test
+```
+
+Current local result:
+
+```text
+sql-find bytes=102411 valid=3 avg=0.1194s speed=0.82 MiB/s
+```
+
 It also includes a small SQL `select` grammar that exercises keyword/identifier
 ambiguity and backtracking conflicts:
 

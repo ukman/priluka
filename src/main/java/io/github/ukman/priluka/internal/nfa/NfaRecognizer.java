@@ -93,9 +93,36 @@ public final class NfaRecognizer {
     }
 
     public NfaFindResult find(List<Lexeme> lexemes) {
+        return find(lexemes, 0);
+    }
+
+    public List<NfaFindResult> findAll(String input) {
+        try {
+            return findAll(lexer.tokenize(input));
+        } catch (LexerException e) {
+            return new ArrayList<NfaFindResult>();
+        }
+    }
+
+    public List<NfaFindResult> findAll(List<Lexeme> lexemes) {
+        List<NfaFindResult> results = new ArrayList<NfaFindResult>();
+        int tokenIndex = 0;
+        while (tokenIndex < lexemes.size()) {
+            NfaFindResult result = find(lexemes, tokenIndex);
+            if (result == null) {
+                break;
+            }
+            results.add(result);
+            int nextTokenIndex = firstTokenAtOrAfter(lexemes, result.getEnd());
+            tokenIndex = nextTokenIndex > tokenIndex ? nextTokenIndex : tokenIndex + 1;
+        }
+        return results;
+    }
+
+    private NfaFindResult find(List<Lexeme> lexemes, int startTokenIndex) {
         List<Configuration> active = new ArrayList<Configuration>();
         NfaFindResult best = null;
-        for (int i = 0; i < lexemes.size(); i++) {
+        for (int i = startTokenIndex; i < lexemes.size(); i++) {
             Lexeme lexeme = lexemes.get(i);
             active.addAll(epsilonClosure(singleton(new Configuration(graph.getStart(), lexeme.getStart()))));
 
@@ -119,6 +146,15 @@ public final class NfaRecognizer {
             }
         }
         return best;
+    }
+
+    private int firstTokenAtOrAfter(List<Lexeme> lexemes, int offset) {
+        for (int i = 0; i < lexemes.size(); i++) {
+            if (lexemes.get(i).getStart() >= offset) {
+                return i;
+            }
+        }
+        return lexemes.size();
     }
 
     private List<Configuration> epsilonClosure(List<Configuration> seed) {

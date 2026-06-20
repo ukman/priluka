@@ -8,6 +8,7 @@ import io.github.ukman.priluka.grammar.GrammarModel;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -114,6 +115,19 @@ class NfaRecognizerTest {
         NfaRecognizer recognizer = recognizer(PlusNumber.class);
 
         assertEquals(null, recognizer.find("1 2 3"));
+    }
+
+    @Test
+    void findsAllNonOverlappingMatchingSpansInsideTokenStream() {
+        NfaRecognizer recognizer = recognizer(PlusNumber.class);
+
+        List<NfaFindResult> results = recognizer.findAll("1 + 2 3 + 4");
+
+        assertEquals(2, results.size());
+        assertEquals(2, results.get(0).getStart());
+        assertEquals(5, results.get(0).getEnd());
+        assertEquals(8, results.get(1).getStart());
+        assertEquals(11, results.get(1).getEnd());
     }
 
     private NfaRecognizer recognizer(Class<?> start) {
