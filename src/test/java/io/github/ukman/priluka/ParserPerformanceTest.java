@@ -36,6 +36,35 @@ class ParserPerformanceTest {
         }
     }
 
+    @Test
+    void comparesPublicNfaAndReflectiveParserOnSimplifiedSqlSelects() {
+        Assumptions.assumeTrue(
+            Boolean.getBoolean("priluka.perf"),
+            "Manual parser performance dump. Run with -Dpriluka.perf=true -Dtest=ParserPerformanceTest."
+        );
+
+        Parser.InitializedParser publicParser = Parser.initFromOuterClass(
+            SimplifiedSqlSelectParserTest.SimpleSqlGrammar.class
+        );
+        GrammarModel model = publicParser.describe(
+            SimplifiedSqlSelectParserTest.SimpleSqlGrammar.SelectStatement.class
+        );
+        SqlEngineRun nfaEngine = new SqlEngineRun("simplified-sql cached-nfa-engine", new NfaParseEngine(model));
+        SqlEngineRun reflectiveEngine = new SqlEngineRun(
+            "simplified-sql cached-reflective-engine",
+            new ReflectiveParser(model)
+        );
+
+        int[] sizes = sqlSizes();
+        for (int i = 0; i < sizes.length; i++) {
+            String input = generatedSimplifiedSql(sizes[i]);
+            System.out.println(measurePublicSql(publicParser, "simplified-sql public-parser-auto", input));
+            System.out.println(measureSqlEngine(nfaEngine, input));
+            System.out.println(measureSqlEngine(reflectiveEngine, input));
+            System.out.println();
+        }
+    }
+
     private Result measurePublic(Parser.InitializedParser parser, String label, String input) {
         NumberArray value = null;
         for (int i = 0; i < WARMUP_RUNS; i++) {
@@ -68,15 +97,71 @@ class ParserPerformanceTest {
         return result(run.label, input, value, totalNanos);
     }
 
+    private Result measurePublicSql(Parser.InitializedParser parser, String label, String input) {
+        SimplifiedSqlSelectParserTest.SimpleSqlGrammar.SelectStatement value = null;
+        for (int i = 0; i < WARMUP_RUNS; i++) {
+            value = parser.parse(SimplifiedSqlSelectParserTest.SimpleSqlGrammar.SelectStatement.class, input);
+        }
+
+        long totalNanos = 0;
+        for (int i = 0; i < MEASURE_RUNS; i++) {
+            long start = System.nanoTime();
+            value = parser.parse(SimplifiedSqlSelectParserTest.SimpleSqlGrammar.SelectStatement.class, input);
+            totalNanos += System.nanoTime() - start;
+        }
+
+        return sqlResult(label, input, value, totalNanos);
+    }
+
+    private Result measureSqlEngine(SqlEngineRun run, String input) {
+        SimplifiedSqlSelectParserTest.SimpleSqlGrammar.SelectStatement value = null;
+        for (int i = 0; i < WARMUP_RUNS; i++) {
+            value = run.parse(input);
+        }
+
+        long totalNanos = 0;
+        for (int i = 0; i < MEASURE_RUNS; i++) {
+            long start = System.nanoTime();
+            value = run.parse(input);
+            totalNanos += System.nanoTime() - start;
+        }
+
+        return sqlResult(run.label, input, value, totalNanos);
+    }
+
     private Result result(String label, String input, NumberArray value, long totalNanos) {
         double averageSeconds = (totalNanos / (double) MEASURE_RUNS) / 1_000_000_000.0;
         return new Result(label, input.length(), value.numbers.length, averageSeconds);
+    }
+
+    private Result sqlResult(
+        String label,
+        String input,
+        SimplifiedSqlSelectParserTest.SimpleSqlGrammar.SelectStatement value,
+        long totalNanos
+    ) {
+        double averageSeconds = (totalNanos / (double) MEASURE_RUNS) / 1_000_000_000.0;
+        return new Result(label, input.length(), value.selectItems.length, averageSeconds);
     }
 
     private int[] sizes() {
         String configured = System.getProperty("priluka.parser.bytes");
         if (configured == null || configured.trim().isEmpty()) {
             return new int[] {1024, 10 * 1024, 100 * 1024};
+        }
+
+        String[] parts = configured.split(",");
+        int[] sizes = new int[parts.length];
+        for (int i = 0; i < parts.length; i++) {
+            sizes[i] = Integer.parseInt(parts[i].trim());
+        }
+        return sizes;
+    }
+
+    private int[] sqlSizes() {
+        String configured = System.getProperty("priluka.parser.sql.bytes");
+        if (configured == null || configured.trim().isEmpty()) {
+            return new int[] {1024, 10 * 1024, 50 * 1024};
         }
 
         String[] parts = configured.split(",");
@@ -100,6 +185,18 @@ class ParserPerformanceTest {
         return result.toString();
     }
 
+    private String generatedSimplifiedSql(int targetBytes) {
+        StringBuilder selectList = new StringBuilder(targetBytes + 128);
+        selectList.append("t.name, t.firstname, p.*");
+        int index = 0;
+        while (selectList.length() < targetBytes) {
+            selectList.append(", t.col").append(index);
+            index++;
+        }
+        return "select " + selectList
+            + " from table1 t1 left join table2 t2 on t1.id=t2.id";
+    }
+
     private static final class EngineRun {
         private final String label;
         private final ParseEngine engine;
@@ -113,6 +210,25 @@ class ParserPerformanceTest {
         private NumberArray parse(String input) {
             ParseTrace trace = engine.parseTrace(NumberArray.class, input);
             return builder.build(NumberArray.class, trace);
+        }
+    }
+
+    private static final class SqlEngineRun {
+        private final String label;
+        private final ParseEngine engine;
+        private final TraceObjectBuilder builder = new TraceObjectBuilder();
+
+        private SqlEngineRun(String label, ParseEngine engine) {
+            this.label = label;
+            this.engine = engine;
+        }
+
+        private SimplifiedSqlSelectParserTest.SimpleSqlGrammar.SelectStatement parse(String input) {
+            ParseTrace trace = engine.parseTrace(
+                SimplifiedSqlSelectParserTest.SimpleSqlGrammar.SelectStatement.class,
+                input
+            );
+            return builder.build(SimplifiedSqlSelectParserTest.SimpleSqlGrammar.SelectStatement.class, trace);
         }
     }
 

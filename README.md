@@ -1298,6 +1298,49 @@ still poor. The likely hot spot is the current NFA trace representation: every
 configuration stores a copied list of trace steps. A backpointer chain should be
 the next optimization target.
 
+The same `ParserPerformanceTest` also contains an NFA-compatible simplified
+SQL `select` grammar without recursive expressions, `where`, or subqueries. It
+supports:
+
+```text
+select *
+select t.*
+select t.name, t.firstname, p.*
+from table
+from db.table
+from table1 t1 left join table2 t2 on t1.id=t2.id
+```
+
+Run only the simplified SQL dump with:
+
+```bash
+mvn -Dpriluka.perf=true \
+    -Dtest=ParserPerformanceTest#comparesPublicNfaAndReflectiveParserOnSimplifiedSqlSelects \
+    -Dpriluka.parser.sql.bytes=1024,10240,51200 \
+    -Dpriluka.perf.warmup=1 \
+    -Dpriluka.perf.runs=3 \
+    test
+```
+
+Current local result:
+
+```text
+simplified-sql public-parser-auto bytes=1081 values=114 avg=0.0246s speed=0.04 MiB/s values=4629/s
+simplified-sql cached-nfa-engine bytes=1081 values=114 avg=0.0100s speed=0.10 MiB/s values=11413/s
+simplified-sql cached-reflective-engine bytes=1081 values=114 avg=0.0130s speed=0.08 MiB/s values=8799/s
+
+simplified-sql public-parser-auto bytes=10301 values=1033 avg=0.2923s speed=0.03 MiB/s values=3534/s
+simplified-sql cached-nfa-engine bytes=10301 values=1033 avg=0.1991s speed=0.05 MiB/s values=5189/s
+simplified-sql cached-reflective-engine bytes=10301 values=1033 avg=0.1848s speed=0.05 MiB/s values=5591/s
+
+simplified-sql public-parser-auto bytes=51265 values=4757 avg=3.1823s speed=0.02 MiB/s values=1495/s
+simplified-sql cached-nfa-engine bytes=51265 values=4757 avg=3.2030s speed=0.02 MiB/s values=1485/s
+simplified-sql cached-reflective-engine bytes=51265 values=4757 avg=3.6383s speed=0.01 MiB/s values=1307/s
+```
+
+This grammar is intentionally acyclic and has a test that checks
+`GrammarModel.checkNfaCompatibility().isSupported()`.
+
 It also includes a small SQL `select` grammar that exercises keyword/identifier
 ambiguity and backtracking conflicts:
 
