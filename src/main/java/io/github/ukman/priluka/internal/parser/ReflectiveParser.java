@@ -18,12 +18,16 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public final class ReflectiveParser {
     private final GrammarModel model;
     private final Map<Class<?>, NonterminalSymbol> nonterminals = new LinkedHashMap<Class<?>, NonterminalSymbol>();
     private final Map<Class<?>, TerminalSymbol> terminals = new LinkedHashMap<Class<?>, TerminalSymbol>();
+    private final boolean debug;
+    private final ParseDebugStats debugStats = new ParseDebugStats();
+    private int parseDepth;
 
     public ReflectiveParser(GrammarModel model) {
         this.model = model;
@@ -33,43 +37,89 @@ public final class ReflectiveParser {
         for (TerminalSymbol terminal : model.getTerminals()) {
             terminals.put(terminal.getType(), terminal);
         }
+        this.debug = Boolean.getBoolean("priluka.parser.debug");
     }
 
     public <S> S parse(Class<S> start, String input) {
+        if (debug) {
+            debugStats.reset();
+            parseDepth = 0;
+        }
         Lexer lexer = Lexers.defaultLexer(new LexerSpec(terminalsWithImplicitWhitespace()), LexerOptions.DEFAULT);
         List<Lexeme> lexemes = lexer.tokenize(input);
         List<ParseResult> results = parseNonterminal(start, lexemes, 0);
+        if (debug) {
+            debugStats.topLevelResults = results.size();
+        }
         ParseResult partial = null;
+        ParseResult full = null;
         for (ParseResult result : results) {
             if (result.position == lexemes.size()) {
-                return start.cast(result.value);
+                if (debug) {
+                    debugStats.fullResults++;
+                }
+                if (full == null) {
+                    full = result;
+                }
+            } else {
+                if (debug) {
+                    debugStats.rejectedPartialResults++;
+                }
+                if (partial == null || result.position > partial.position) {
+                    partial = result;
+                }
             }
-            if (partial == null || result.position > partial.position) {
-                partial = result;
+        }
+        if (full != null) {
+            if (debug) {
+                debugStats.print(start, input.length(), lexemes.size());
             }
+            return start.cast(full.value);
         }
 
         if (partial != null && partial.position < lexemes.size()) {
+            if (debug) {
+                debugStats.print(start, input.length(), lexemes.size());
+            }
             Lexeme unexpected = lexemes.get(partial.position);
             throw new ParseException("Unexpected token at offset " + unexpected.getStart() + ": " + unexpected.getText());
+        }
+        if (debug) {
+            debugStats.print(start, input.length(), lexemes.size());
         }
         throw new ParseException("Input does not match start symbol: " + start.getName());
     }
 
     private List<ParseResult> parseNonterminal(Class<?> type, List<Lexeme> lexemes, int position) {
-        NonterminalSymbol nonterminal = nonterminals.get(type);
-        if (nonterminal == null) {
-            return new ArrayList<ParseResult>();
+        if (debug) {
+            debugStats.nonterminalCalls++;
+            parseDepth++;
+            if (parseDepth > debugStats.maxParseDepth) {
+                debugStats.maxParseDepth = parseDepth;
+            }
         }
+        try {
+            NonterminalSymbol nonterminal = nonterminals.get(type);
+            if (nonterminal == null) {
+                return new ArrayList<ParseResult>();
+            }
 
-        List<ParseResult> results = new ArrayList<ParseResult>();
-        for (Production production : nonterminal.getProductions()) {
-            results.addAll(parseProduction(production, lexemes, position));
+            List<ParseResult> results = new ArrayList<ParseResult>();
+            for (Production production : nonterminal.getProductions()) {
+                results.addAll(parseProduction(production, lexemes, position));
+            }
+            return results;
+        } finally {
+            if (debug) {
+                parseDepth--;
+            }
         }
-        return results;
     }
 
     private List<ParseResult> parseProduction(Production production, List<Lexeme> lexemes, int position) {
+        if (debug) {
+            debugStats.productionAttempts++;
+        }
         List<ParseState> states = new ArrayList<ParseState>();
         states.add(new ParseState(position, new ArrayList<Object>()));
 
@@ -87,6 +137,9 @@ public final class ReflectiveParser {
                 }
             }
             if (nextStates.isEmpty()) {
+                if (debug) {
+                    debugStats.productionDeadEnds++;
+                }
                 return new ArrayList<ParseResult>();
             }
             states = nextStates;
@@ -95,6 +148,10 @@ public final class ReflectiveParser {
         List<ParseResult> results = new ArrayList<ParseResult>();
         for (ParseState state : states) {
             results.add(new ParseResult(instantiateProduction(production, state.values), state.position));
+        }
+        if (debug) {
+            debugStats.productionMatches++;
+            debugStats.parseResultsProduced += results.size();
         }
         return results;
     }
@@ -118,13 +175,25 @@ public final class ReflectiveParser {
     }
 
     private List<ParseResult> parseTerminal(Class<?> type, List<Lexeme> lexemes, int position) {
+        if (debug) {
+            debugStats.terminalAttempts++;
+        }
         List<ParseResult> results = new ArrayList<ParseResult>();
         if (position >= lexemes.size()) {
+            if (debug) {
+                debugStats.terminalMisses++;
+            }
             return results;
         }
         Lexeme lexeme = lexemes.get(position);
         if (!lexeme.hasTerminal(type)) {
+            if (debug) {
+                debugStats.terminalMisses++;
+            }
             return results;
+        }
+        if (debug) {
+            debugStats.terminalMatches++;
         }
         results.add(new ParseResult(terminalValue(type, lexeme), position + 1));
         return results;
@@ -218,6 +287,66 @@ public final class ReflectiveParser {
         private ParseResult(Object value, int position) {
             this.value = value;
             this.position = position;
+        }
+    }
+
+    private static final class ParseDebugStats {
+        private long nonterminalCalls;
+        private long productionAttempts;
+        private long productionMatches;
+        private long productionDeadEnds;
+        private long terminalAttempts;
+        private long terminalMatches;
+        private long terminalMisses;
+        private long parseResultsProduced;
+        private int topLevelResults;
+        private int fullResults;
+        private int rejectedPartialResults;
+        private int maxParseDepth;
+
+        private void reset() {
+            nonterminalCalls = 0;
+            productionAttempts = 0;
+            productionMatches = 0;
+            productionDeadEnds = 0;
+            terminalAttempts = 0;
+            terminalMatches = 0;
+            terminalMisses = 0;
+            parseResultsProduced = 0;
+            topLevelResults = 0;
+            fullResults = 0;
+            rejectedPartialResults = 0;
+            maxParseDepth = 0;
+        }
+
+        private void print(Class<?> start, int inputChars, int lexemes) {
+            System.out.println(
+                "parser-debug start=" + start.getSimpleName()
+                    + " chars=" + inputChars
+                    + " lexemes=" + lexemes
+                    + " nonterminalCalls=" + nonterminalCalls
+                    + " productionAttempts=" + productionAttempts
+                    + " productionMatches=" + productionMatches
+                    + " productionDeadEnds=" + productionDeadEnds
+                    + " productionDeadEndRate=" + percent(productionDeadEnds, productionAttempts)
+                    + " terminalAttempts=" + terminalAttempts
+                    + " terminalMatches=" + terminalMatches
+                    + " terminalMisses=" + terminalMisses
+                    + " terminalMissRate=" + percent(terminalMisses, terminalAttempts)
+                    + " parseResultsProduced=" + parseResultsProduced
+                    + " topLevelResults=" + topLevelResults
+                    + " fullResults=" + fullResults
+                    + " rejectedPartialResults=" + rejectedPartialResults
+                    + " partialTopLevelRate=" + percent(rejectedPartialResults, topLevelResults)
+                    + " maxParseDepth=" + maxParseDepth
+            );
+        }
+
+        private String percent(long numerator, long denominator) {
+            if (denominator == 0) {
+                return "0.00%";
+            }
+            return String.format(Locale.ROOT, "%.2f%%", numerator * 100.0 / denominator);
         }
     }
 }

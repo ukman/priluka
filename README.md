@@ -1246,6 +1246,31 @@ nested-sql depth=40 bytes=2524 avg=42.503 ms
 nested-sql depth=50 bytes=3174 avg=53.785 ms
 ```
 
+Parser v1 can print coarse backtracking/debug counters:
+
+```bash
+mvn -DargLine='-Xss16m' \
+    -Dpriluka.perf=true \
+    -Dpriluka.parser.debug=true \
+    -Dtest=SqlSelectPerformanceTest \
+    -Dpriluka.sql.depths=10,100,300,400 \
+    -Dpriluka.perf.warmup=0 \
+    -Dpriluka.perf.runs=1 \
+    test
+```
+
+The debug line reports:
+
+- `productionAttempts`: production branches that were tried
+- `productionDeadEnds`: production branches that could not consume the next
+  required grammar part
+- `productionDeadEndRate`: share of tried productions that died locally
+- `terminalAttempts`, `terminalMatches`, `terminalMisses`: terminal-level
+  matching pressure
+- `topLevelResults`, `fullResults`, `rejectedPartialResults`: complete vs
+  partial parses returned for the start symbol
+- `maxParseDepth`: maximum recursive parser call depth
+
 Not supported in parser v1 yet:
 
 - `Optional`
