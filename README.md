@@ -129,7 +129,24 @@ The benchmark also reports scan-only mode, which counts tokens without creating
 `Lexeme` objects or storing token lists. This estimates the potential win from a
 streaming/cursor lexer or more careful allocation strategy.
 
-The lexer uses `Matcher.find()` plus an explicit gap check
+Experimental `experiment/brics-lexer` result:
+
+```text
+strict: bytes=5242919 tokens=1065406 avg=0.3702s speed=13.51 MiB/s
+multi-variant: bytes=5242919 tokens=1065406 avg=0.8822s speed=5.67 MiB/s
+strict scan-only: bytes=5242919 tokens=1065406 avg=0.1364s speed=36.66 MiB/s
+multi-variant scan-only: bytes=5242919 tokens=1065406 avg=0.1151s speed=43.44 MiB/s
+```
+
+In this branch the lexer uses `dk.brics.automaton.RunAutomaton` as its scanning
+foundation. The implementation is intentionally simple: one automaton per
+master terminal, longest match at the current position, and regular Java object
+allocation for `Lexeme` in full tokenization mode. The scan-only numbers show
+that deterministic automata can be much faster than the previous
+`java.util.regex` lexer path, while the full tokenization numbers still expose
+allocation and ambiguity-collection costs.
+
+The previous `java.util.regex` lexer path uses `Matcher.find()` plus an explicit gap check
 (`matcher.start() == currentPosition`) instead of resetting `region(...)` and
 calling `lookingAt()` at every token boundary. This keeps error detection for
 unmatched input while allowing the regex engine to scan more efficiently.
