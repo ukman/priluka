@@ -94,14 +94,19 @@ Implemented:
 - skip-token filtering
 - keyword carrier optimization for keywords covered by terminals such as `Id`
 - manual lexer performance baseline test
+- real `Parser.parse(...)` v1 through a reflective backtracking parser
+- object construction for constructor productions with single parts
+- built-in terminal conversion for `Integer`, `Double`, and `Boolean`
+- interface alternatives inside `Parser.init(...)` during parsing
+- implicit whitespace skipping in parser v1
 
 Not implemented yet:
 
 - NFA compiler
 - NFA simulation
 - parse trace
-- object construction from a parse trace
-- real `Parser.parse(...)`
+- object construction from an NFA parse trace
+- parsing for `Optional`, arrays, collections, `@OneOrMore`, and `@Separator`
 
 Manual lexer benchmark:
 
@@ -1161,8 +1166,28 @@ case where all keywords are special cases of identifiers.
 
 Priluka should separate grammar discovery from parser execution.
 
-The first version should focus on an NFA-based engine. The full general parser
-engine is intentionally postponed.
+The current parser v1 is a small reflective backtracking engine. It is designed
+to make `Parser.parse(...)` real before the fast NFA path exists.
+
+Supported in parser v1:
+
+- constructor productions
+- interface alternatives discovered through `Parser.init(...)`
+- terminal matching through `Lexeme.hasTerminal(...)`
+- object construction through reflection
+- built-in values for `Integer`, `Double`, and `Boolean`
+- implicit whitespace skipping between tokens
+
+Not supported in parser v1 yet:
+
+- `Optional`
+- arrays and collections
+- `@OneOrMore`
+- `@Separator`
+- left recursion or advanced ambiguity handling
+
+The next fast parser version should focus on an NFA-based engine. The full
+general parser engine is intentionally postponed.
 
 The Java model should first be converted into a compact internal grammar model:
 
