@@ -87,10 +87,13 @@ Implemented:
 - built-in terminals for `Integer`, `Double`, and `Boolean`
 - explicit `@Terminal` and `@Keyword` terminals
 - arrays, collections, `Optional<T>`, `@OneOrMore`, and `@Separator`
+- internal lexer `Lexeme` model
+- internal master-regexp builder with lexer priority ordering
+- keyword branch quoting in master regexps
 
 Not implemented yet:
 
-- lexer
+- lexer tokenization loop
 - NFA compiler
 - NFA simulation
 - parse trace
