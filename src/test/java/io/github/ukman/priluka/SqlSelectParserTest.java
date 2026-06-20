@@ -37,6 +37,14 @@ class SqlSelectParserTest {
     }
 
     @Test
+    void parsesLeftJoinOnCondition() {
+        assertSql(
+            "select name from person p left join company c on p.company_id = c.id",
+            "select name from person p left join company c on p.company_id = c.id"
+        );
+    }
+
+    @Test
     void parsesFunctionCallInSelectList() {
         assertSql(
             "select count(*) from person",
@@ -74,7 +82,7 @@ class SqlSelectParserTest {
         "select from person",
         "select * person",
         "select * from",
-        "select name from person left join company on p.id = c.id",
+        "select name from person left join company c on",
         "select * from person where id in ()",
         "select * from person where id between 1",
         "select * from person group last_name",
@@ -349,21 +357,52 @@ class SqlSelectParserTest {
             final Left left;
             final Join join;
             final TableReference table;
+            final OnClauseTail onClause;
 
-            LeftJoinTail(Left left, Join join, TableReference table) {
+            LeftJoinTail(Left left, Join join, TableReference table, OnClauseTail onClause) {
                 this.left = left;
                 this.join = join;
                 this.table = table;
+                this.onClause = onClause;
             }
 
             @Override
             public String sql() {
-                return " left join " + table.sql();
+                return " left join " + table.sql() + onClause.sql();
             }
         }
 
         static class ZEmptyJoinTail implements JoinTail {
             ZEmptyJoinTail() {
+            }
+
+            @Override
+            public String sql() {
+                return "";
+            }
+        }
+
+        interface OnClauseTail {
+            String sql();
+        }
+
+        static class OnConditionTail implements OnClauseTail {
+            final On on;
+            final ConditionalExpression condition;
+
+            OnConditionTail(On on, ConditionalExpression condition) {
+                this.on = on;
+                this.condition = condition;
+            }
+
+            @Override
+            public String sql() {
+                return " on " + condition.sql();
+            }
+        }
+
+        static class ZEmptyOnClauseTail implements OnClauseTail {
+            ZEmptyOnClauseTail() {
             }
 
             @Override
@@ -814,6 +853,10 @@ class SqlSelectParserTest {
 
         @Keyword("join")
         static class Join {
+        }
+
+        @Keyword("on")
+        static class On {
         }
 
         @Keyword("where")

@@ -1225,6 +1225,27 @@ including trailing commas in select lists, missing `from`, incomplete joins,
 empty `in ()`, incomplete `between`, and incomplete `group by` / `order by`
 clauses.
 
+Manual nested SQL parser benchmark:
+
+```bash
+mvn -Dpriluka.perf=true \
+    -Dtest=SqlSelectPerformanceTest \
+    -Dpriluka.sql.depths=10,20,30,40,50 \
+    -Dpriluka.perf.warmup=2 \
+    -Dpriluka.perf.runs=5 \
+    test
+```
+
+Current local result for nested `left join (select ...) as ... on ...` chains:
+
+```text
+nested-sql depth=10 bytes=574 avg=22.743 ms
+nested-sql depth=20 bytes=1224 avg=25.392 ms
+nested-sql depth=30 bytes=1874 avg=29.213 ms
+nested-sql depth=40 bytes=2524 avg=42.503 ms
+nested-sql depth=50 bytes=3174 avg=53.785 ms
+```
+
 Not supported in parser v1 yet:
 
 - `Optional`
