@@ -8,6 +8,7 @@ import io.github.ukman.priluka.grammar.TerminalSymbol;
 import io.github.ukman.priluka.internal.lexer.Lexeme;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -25,6 +26,8 @@ final class GrammarPredictor {
     private final Map<Class<?>, Set<Class<?>>> follow = new LinkedHashMap<Class<?>, Set<Class<?>>>();
     private final Map<Production, Set<Class<?>>> productionFirst = new LinkedHashMap<Production, Set<Class<?>>>();
     private final Set<Production> nullableProductions = new HashSet<Production>();
+    private final Map<Class<?>, Map<Class<?>, List<Production>>> decisionTable =
+        new LinkedHashMap<Class<?>, Map<Class<?>, List<Production>>>();
 
     GrammarPredictor(GrammarModel model) {
         for (NonterminalSymbol nonterminal : model.getNonterminals()) {
@@ -41,39 +44,39 @@ final class GrammarPredictor {
         computeFirst();
         computeProductionFirst();
         computeFollow();
+        buildDecisionTable();
     }
 
     List<Production> predict(NonterminalSymbol nonterminal, List<Lexeme> lexemes, int position) {
-        List<Production> productions = nonterminal.getProductions();
+        Map<Class<?>, List<Production>> table = decisionTable.get(nonterminal.getType());
+        if (table == null) {
+            return Collections.emptyList();
+        }
+
+        if (position >= lexemes.size()) {
+            return lookup(table, END);
+        }
+
+        List<TerminalSymbol> terminalTypes = lexemes.get(position).getTerminalTypes();
+        if (terminalTypes.size() == 1) {
+            return lookup(table, terminalTypes.get(0).getType());
+        }
+
+        Set<Production> candidates = new LinkedHashSet<Production>();
+        for (TerminalSymbol terminal : terminalTypes) {
+            candidates.addAll(lookup(table, terminal.getType()));
+        }
+        if (candidates.isEmpty()) {
+            return Collections.emptyList();
+        }
+
         List<Production> result = new ArrayList<Production>();
-        Set<Class<?>> lookahead = lookahead(lexemes, position);
-        for (Production production : productions) {
-            if (matches(production, lookahead)) {
+        for (Production production : nonterminal.getProductions()) {
+            if (candidates.contains(production)) {
                 result.add(production);
             }
         }
-        return result;
-    }
 
-    private boolean matches(Production production, Set<Class<?>> lookahead) {
-        if (intersects(productionFirst.get(production), lookahead)) {
-            return true;
-        }
-        if (nullableProductions.contains(production)) {
-            return intersects(follow.get(production.getOwner().getType()), lookahead);
-        }
-        return false;
-    }
-
-    private Set<Class<?>> lookahead(List<Lexeme> lexemes, int position) {
-        Set<Class<?>> result = new LinkedHashSet<Class<?>>();
-        if (position >= lexemes.size()) {
-            result.add(END);
-            return result;
-        }
-        for (TerminalSymbol terminal : lexemes.get(position).getTerminalTypes()) {
-            result.add(terminal.getType());
-        }
         return result;
     }
 
@@ -156,6 +159,47 @@ final class GrammarPredictor {
         } while (changed);
     }
 
+    private void buildDecisionTable() {
+        for (NonterminalSymbol nonterminal : nonterminals.values()) {
+            Map<Class<?>, List<Production>> table = new LinkedHashMap<Class<?>, List<Production>>();
+            for (Production production : nonterminal.getProductions()) {
+                addDecisionEntries(table, productionFirst.get(production), production);
+                if (nullableProductions.contains(production)) {
+                    addDecisionEntries(table, follow.get(nonterminal.getType()), production);
+                }
+            }
+            decisionTable.put(nonterminal.getType(), freeze(table));
+        }
+    }
+
+    private void addDecisionEntries(
+        Map<Class<?>, List<Production>> table,
+        Set<Class<?>> lookaheadTypes,
+        Production production
+    ) {
+        if (lookaheadTypes == null) {
+            return;
+        }
+        for (Class<?> lookaheadType : lookaheadTypes) {
+            List<Production> productions = table.get(lookaheadType);
+            if (productions == null) {
+                productions = new ArrayList<Production>();
+                table.put(lookaheadType, productions);
+            }
+            if (!productions.contains(production)) {
+                productions.add(production);
+            }
+        }
+    }
+
+    private Map<Class<?>, List<Production>> freeze(Map<Class<?>, List<Production>> table) {
+        Map<Class<?>, List<Production>> result = new LinkedHashMap<Class<?>, List<Production>>();
+        for (Map.Entry<Class<?>, List<Production>> entry : table.entrySet()) {
+            result.put(entry.getKey(), Collections.unmodifiableList(new ArrayList<Production>(entry.getValue())));
+        }
+        return Collections.unmodifiableMap(result);
+    }
+
     private boolean addFirstOfParts(Set<Class<?>> target, List<ProductionPart> parts) {
         boolean changed = false;
         for (ProductionPart part : parts) {
@@ -205,16 +249,12 @@ final class GrammarPredictor {
         return result;
     }
 
-    private boolean intersects(Set<Class<?>> left, Set<Class<?>> right) {
-        if (left == null || right == null) {
-            return false;
+    private List<Production> lookup(Map<Class<?>, List<Production>> table, Class<?> terminalType) {
+        List<Production> productions = table.get(terminalType);
+        if (productions == null) {
+            return Collections.emptyList();
         }
-        for (Class<?> type : left) {
-            if (right.contains(type)) {
-                return true;
-            }
-        }
-        return false;
+        return productions;
     }
 
     private static final class EndOfInput {

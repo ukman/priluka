@@ -1187,8 +1187,8 @@ Supported in parser v1:
 - right-recursive grammars such as arithmetic expressions with precedence
 - choosing a derivation that consumes the whole input, not merely the first
   locally successful production
-- nullable / FIRST / FOLLOW based production prediction before falling back to
-  backtracking between remaining candidates
+- nullable / FIRST / FOLLOW based production prediction through a precomputed
+  decision table before falling back to backtracking between remaining candidates
 
 The current parser test suite includes an arithmetic expression grammar for:
 
