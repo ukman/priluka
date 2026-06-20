@@ -72,20 +72,23 @@ class SqlSelectPerformanceTest {
         private final int depth;
         private final int bytes;
         private final double averageMillis;
+        private final double mebibytesPerSecond;
 
         private Result(int depth, int bytes, double averageMillis) {
             this.depth = depth;
             this.bytes = bytes;
             this.averageMillis = averageMillis;
+            this.mebibytesPerSecond = (bytes / (1024.0 * 1024.0)) / (averageMillis / 1000.0);
         }
 
         @Override
         public String toString() {
             return String.format(
-                "nested-sql depth=%d bytes=%d avg=%.3f ms",
+                "nested-sql depth=%d bytes=%d avg=%.3f ms speed=%.3f MiB/s",
                 Integer.valueOf(depth),
                 Integer.valueOf(bytes),
-                Double.valueOf(averageMillis)
+                Double.valueOf(averageMillis),
+                Double.valueOf(mebibytesPerSecond)
             );
         }
     }
