@@ -130,6 +130,16 @@ class NfaRecognizerTest {
         assertEquals(11, results.get(1).getEnd());
     }
 
+    @Test
+    void findKeepsLongestMatchForFirstAcceptedStart() {
+        NfaRecognizer recognizer = recognizer(NumberArray.class);
+
+        NfaFindResult result = recognizer.find("1,2,3 4,5");
+
+        assertEquals(0, result.getStart());
+        assertEquals(5, result.getEnd());
+    }
+
     private NfaRecognizer recognizer(Class<?> start) {
         GrammarModel model = Parser.describe(start);
         return new NfaRecognizer(model);

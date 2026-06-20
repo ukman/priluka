@@ -141,7 +141,7 @@ public final class NfaRecognizer {
         FindSpan best = null;
         for (int i = startTokenIndex; i < lexemes.size(); i++) {
             Lexeme lexeme = lexemes.get(i);
-            if (canStartAt(lexeme)) {
+            if (best == null && canStartAt(lexeme)) {
                 active.addAll(epsilonClosure(singleton(new Configuration(graph.getStart(), lexeme.getStart(), i)), false));
             }
 
@@ -163,8 +163,20 @@ public final class NfaRecognizer {
             if (accepted != null) {
                 best = betterFindSpan(best, accepted);
             }
+            if (best != null && !hasActiveStartAtOrBefore(active, best.start)) {
+                return best;
+            }
         }
         return best;
+    }
+
+    private boolean hasActiveStartAtOrBefore(List<Configuration> active, int start) {
+        for (Configuration configuration : active) {
+            if (configuration.start <= start) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean canStartAt(Lexeme lexeme) {
