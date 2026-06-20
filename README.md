@@ -1016,6 +1016,17 @@ master regexp branches: Id, Integer, Double, ...
 keyword table for Id: "if" -> If.class, "else" -> Else.class
 ```
 
+The keyword table should be split into exact and case-insensitive lookup maps:
+
+```text
+case-sensitive keywords:   Map<String, Terminal>
+case-insensitive keywords: Map<lowercase String, Terminal>
+```
+
+When an `Id` lexeme is found, Priluka checks the exact map first and the
+case-insensitive map with a normalized key. This avoids re-running keyword
+regexps and preserves `caseSensitive = true` semantics.
+
 For input `"if"`:
 
 ```text

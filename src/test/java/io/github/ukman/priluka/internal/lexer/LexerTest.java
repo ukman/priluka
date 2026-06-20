@@ -74,6 +74,20 @@ class LexerTest {
     }
 
     @Test
+    void doesNotAddCaseSensitiveKeywordWhenCaseDiffers() {
+        Lexer lexer = lexer(
+            keyword(If.class, "if", true, 0),
+            regexp(Id.class, "[A-Za-z_][A-Za-z0-9_]*", false, 0)
+        );
+
+        List<Lexeme> lexemes = lexer.tokenize("IF");
+
+        assertEquals(1, lexemes.size());
+        assertTrue(lexemes.get(0).hasTerminal(Id.class));
+        assertEquals(1, lexemes.get(0).getTerminalTypes().size());
+    }
+
+    @Test
     void identifierEatsKeywordPrefix() {
         Lexer lexer = lexer(
             keyword(If.class, "if", 0),

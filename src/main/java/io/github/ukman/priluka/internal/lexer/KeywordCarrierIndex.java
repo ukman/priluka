@@ -12,12 +12,12 @@ import java.util.regex.Pattern;
 
 final class KeywordCarrierIndex {
     private final List<TerminalSymbol> masterTerminals;
-    private final Map<Class<?>, Map<String, List<TerminalSymbol>>> keywordsByCarrier;
+    private final Map<Class<?>, KeywordLookup> keywordsByCarrier;
     private final List<TerminalSymbol> coveredKeywords;
 
     private KeywordCarrierIndex(
         List<TerminalSymbol> masterTerminals,
-        Map<Class<?>, Map<String, List<TerminalSymbol>>> keywordsByCarrier,
+        Map<Class<?>, KeywordLookup> keywordsByCarrier,
         List<TerminalSymbol> coveredKeywords
     ) {
         this.masterTerminals = Collections.unmodifiableList(new ArrayList<TerminalSymbol>(masterTerminals));
@@ -28,8 +28,7 @@ final class KeywordCarrierIndex {
     static KeywordCarrierIndex build(List<TerminalSymbol> terminals) {
         List<TerminalSymbol> masterTerminals = new ArrayList<TerminalSymbol>();
         List<TerminalSymbol> coveredKeywords = new ArrayList<TerminalSymbol>();
-        Map<Class<?>, Map<String, List<TerminalSymbol>>> keywordsByCarrier =
-            new LinkedHashMap<Class<?>, Map<String, List<TerminalSymbol>>>();
+        Map<Class<?>, KeywordLookup> keywordsByCarrier = new LinkedHashMap<Class<?>, KeywordLookup>();
 
         for (TerminalSymbol terminal : terminals) {
             if (terminal.getKind() == TerminalSymbol.Kind.KEYWORD && attachToCarrier(terminal, terminals, keywordsByCarrier)) {
@@ -44,7 +43,7 @@ final class KeywordCarrierIndex {
     static KeywordCarrierIndex empty(List<TerminalSymbol> terminals) {
         return new KeywordCarrierIndex(
             terminals,
-            new LinkedHashMap<Class<?>, Map<String, List<TerminalSymbol>>>(),
+            new LinkedHashMap<Class<?>, KeywordLookup>(),
             new ArrayList<TerminalSymbol>()
         );
     }
@@ -56,11 +55,11 @@ final class KeywordCarrierIndex {
     void addKeywordMatches(String text, List<TerminalSymbol> terminalTypes) {
         List<TerminalSymbol> snapshot = new ArrayList<TerminalSymbol>(terminalTypes);
         for (TerminalSymbol terminal : snapshot) {
-            Map<String, List<TerminalSymbol>> keywordsByText = keywordsByCarrier.get(terminal.getType());
-            if (keywordsByText == null) {
+            KeywordLookup keywordLookup = keywordsByCarrier.get(terminal.getType());
+            if (keywordLookup == null) {
                 continue;
             }
-            List<TerminalSymbol> keywords = keywordsByText.get(normalize(text));
+            List<TerminalSymbol> keywords = keywordLookup.find(text);
             if (keywords == null) {
                 continue;
             }
@@ -79,25 +78,19 @@ final class KeywordCarrierIndex {
     private static boolean attachToCarrier(
         TerminalSymbol keyword,
         List<TerminalSymbol> terminals,
-        Map<Class<?>, Map<String, List<TerminalSymbol>>> keywordsByCarrier
+        Map<Class<?>, KeywordLookup> keywordsByCarrier
     ) {
         for (TerminalSymbol carrier : terminals) {
             if (carrier.getKind() == TerminalSymbol.Kind.KEYWORD) {
                 continue;
             }
             if (matches(carrier, keyword.getPattern())) {
-                Map<String, List<TerminalSymbol>> keywordsByText = keywordsByCarrier.get(carrier.getType());
-                if (keywordsByText == null) {
-                    keywordsByText = new LinkedHashMap<String, List<TerminalSymbol>>();
-                    keywordsByCarrier.put(carrier.getType(), keywordsByText);
+                KeywordLookup keywordLookup = keywordsByCarrier.get(carrier.getType());
+                if (keywordLookup == null) {
+                    keywordLookup = new KeywordLookup();
+                    keywordsByCarrier.put(carrier.getType(), keywordLookup);
                 }
-                String key = normalize(keyword.getPattern());
-                List<TerminalSymbol> keywords = keywordsByText.get(key);
-                if (keywords == null) {
-                    keywords = new ArrayList<TerminalSymbol>();
-                    keywordsByText.put(key, keywords);
-                }
-                keywords.add(keyword);
+                keywordLookup.add(keyword);
                 return true;
             }
         }
@@ -121,5 +114,44 @@ final class KeywordCarrierIndex {
 
     private static String normalize(String text) {
         return text.toLowerCase(Locale.ROOT);
+    }
+
+    private static final class KeywordLookup {
+        private final Map<String, List<TerminalSymbol>> exactKeywords =
+            new LinkedHashMap<String, List<TerminalSymbol>>();
+        private final Map<String, List<TerminalSymbol>> caseInsensitiveKeywords =
+            new LinkedHashMap<String, List<TerminalSymbol>>();
+
+        void add(TerminalSymbol keyword) {
+            Map<String, List<TerminalSymbol>> target = keyword.isCaseSensitive()
+                ? exactKeywords
+                : caseInsensitiveKeywords;
+            String key = keyword.isCaseSensitive()
+                ? keyword.getPattern()
+                : normalize(keyword.getPattern());
+            List<TerminalSymbol> keywords = target.get(key);
+            if (keywords == null) {
+                keywords = new ArrayList<TerminalSymbol>();
+                target.put(key, keywords);
+            }
+            keywords.add(keyword);
+        }
+
+        List<TerminalSymbol> find(String text) {
+            List<TerminalSymbol> found = null;
+            List<TerminalSymbol> exact = exactKeywords.get(text);
+            if (exact != null) {
+                found = new ArrayList<TerminalSymbol>(exact);
+            }
+
+            List<TerminalSymbol> caseInsensitive = caseInsensitiveKeywords.get(normalize(text));
+            if (caseInsensitive != null) {
+                if (found == null) {
+                    found = new ArrayList<TerminalSymbol>();
+                }
+                found.addAll(caseInsensitive);
+            }
+            return found;
+        }
     }
 }
