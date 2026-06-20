@@ -57,8 +57,9 @@ public final class NfaRecognizer {
     }
 
     public ParseTrace parseTrace(List<Lexeme> lexemes) {
-        List<Configuration> active = epsilonClosure(singleton(new Configuration(graph.getStart())));
-        for (Lexeme lexeme : lexemes) {
+        List<Configuration> active = epsilonClosure(singleton(new Configuration(graph.getStart())), true);
+        for (int i = 0; i < lexemes.size(); i++) {
+            Lexeme lexeme = lexemes.get(i);
             List<Configuration> next = new ArrayList<Configuration>();
             for (Configuration configuration : active) {
                 List<NfaTransition> transitions = outgoing.get(configuration.state);
@@ -67,14 +68,14 @@ public final class NfaRecognizer {
                         transition.getKind() == NfaTransition.Kind.TERMINAL
                             && lexeme.hasTerminal(transition.getSymbolType())
                     ) {
-                        next.add(configuration.advance(transition, lexeme));
+                        next.add(configuration.advance(transition, lexeme, i, true));
                     }
                 }
             }
             if (next.isEmpty()) {
                 return null;
             }
-            active = epsilonClosure(next);
+            active = epsilonClosure(next, true);
         }
         for (Configuration configuration : active) {
             if (configuration.state.equals(graph.getAccept())) {
@@ -120,11 +121,20 @@ public final class NfaRecognizer {
     }
 
     private NfaFindResult find(List<Lexeme> lexemes, int startTokenIndex) {
+        FindSpan span = findSpan(lexemes, startTokenIndex);
+        if (span == null) {
+            return null;
+        }
+        ParseTrace trace = parseTrace(lexemes.subList(span.startTokenIndex, span.endTokenIndex));
+        return new NfaFindResult(span.start, span.end, trace);
+    }
+
+    private FindSpan findSpan(List<Lexeme> lexemes, int startTokenIndex) {
         List<Configuration> active = new ArrayList<Configuration>();
-        NfaFindResult best = null;
+        FindSpan best = null;
         for (int i = startTokenIndex; i < lexemes.size(); i++) {
             Lexeme lexeme = lexemes.get(i);
-            active.addAll(epsilonClosure(singleton(new Configuration(graph.getStart(), lexeme.getStart()))));
+            active.addAll(epsilonClosure(singleton(new Configuration(graph.getStart(), lexeme.getStart(), i)), false));
 
             List<Configuration> next = new ArrayList<Configuration>();
             for (Configuration configuration : active) {
@@ -134,15 +144,15 @@ public final class NfaRecognizer {
                         transition.getKind() == NfaTransition.Kind.TERMINAL
                             && lexeme.hasTerminal(transition.getSymbolType())
                     ) {
-                        next.add(configuration.advance(transition, lexeme));
+                        next.add(configuration.advance(transition, lexeme, i, false));
                     }
                 }
             }
 
-            active = epsilonClosure(next);
-            NfaFindResult accepted = firstAccepted(active);
+            active = epsilonClosure(next, false);
+            FindSpan accepted = firstAcceptedSpan(active);
             if (accepted != null) {
-                best = betterFindResult(best, accepted);
+                best = betterFindSpan(best, accepted);
             }
         }
         return best;
@@ -157,7 +167,7 @@ public final class NfaRecognizer {
         return lexemes.size();
     }
 
-    private List<Configuration> epsilonClosure(List<Configuration> seed) {
+    private List<Configuration> epsilonClosure(List<Configuration> seed, boolean captureTrace) {
         List<Configuration> closed = new ArrayList<Configuration>(seed);
         Set<NfaState> closedStates = new LinkedHashSet<NfaState>();
         Deque<Configuration> queue = new ArrayDeque<Configuration>(seed);
@@ -172,7 +182,7 @@ public final class NfaRecognizer {
                     continue;
                 }
                 if (closedStates.add(transition.getTo())) {
-                    Configuration next = configuration.advance(transition, null);
+                    Configuration next = configuration.advance(transition, null, -1, captureTrace);
                     closed.add(next);
                     queue.addLast(next);
                 }
@@ -187,27 +197,28 @@ public final class NfaRecognizer {
         return result;
     }
 
-    private NfaFindResult firstAccepted(List<Configuration> active) {
+    private FindSpan firstAcceptedSpan(List<Configuration> active) {
         for (Configuration configuration : active) {
             if (configuration.state.equals(graph.getAccept()) && configuration.end >= configuration.start) {
-                return new NfaFindResult(
+                return new FindSpan(
                     configuration.start,
                     configuration.end,
-                    new ParseTrace(traceEvents(configuration.trace))
+                    configuration.startTokenIndex,
+                    configuration.endTokenIndex
                 );
             }
         }
         return null;
     }
 
-    private NfaFindResult betterFindResult(NfaFindResult current, NfaFindResult candidate) {
+    private FindSpan betterFindSpan(FindSpan current, FindSpan candidate) {
         if (current == null) {
             return candidate;
         }
-        if (candidate.getStart() < current.getStart()) {
+        if (candidate.start < current.start) {
             return candidate;
         }
-        if (candidate.getStart() == current.getStart() && candidate.getEnd() > current.getEnd()) {
+        if (candidate.start == current.start && candidate.end > current.end) {
             return candidate;
         }
         return current;
@@ -296,28 +307,63 @@ public final class NfaRecognizer {
         private final TraceNode trace;
         private final int start;
         private final int end;
+        private final int startTokenIndex;
+        private final int endTokenIndex;
 
         private Configuration(NfaState state) {
-            this(state, null, -1, -1);
+            this(state, null, -1, -1, 0, 0);
         }
 
-        private Configuration(NfaState state, int start) {
-            this(state, null, start, start);
+        private Configuration(NfaState state, int start, int startTokenIndex) {
+            this(state, null, start, start, startTokenIndex, startTokenIndex);
         }
 
-        private Configuration(NfaState state, TraceNode trace, int start, int end) {
+        private Configuration(
+            NfaState state,
+            TraceNode trace,
+            int start,
+            int end,
+            int startTokenIndex,
+            int endTokenIndex
+        ) {
             this.state = state;
             this.trace = trace;
             this.start = start;
             this.end = end;
+            this.startTokenIndex = startTokenIndex;
+            this.endTokenIndex = endTokenIndex;
         }
 
-        private Configuration advance(NfaTransition transition, Lexeme lexeme) {
+        private Configuration advance(NfaTransition transition, Lexeme lexeme, int tokenIndex, boolean captureTrace) {
             int nextEnd = end;
+            int nextEndTokenIndex = endTokenIndex;
             if (lexeme != null) {
                 nextEnd = lexeme.getStart() + lexeme.getLen();
+                nextEndTokenIndex = tokenIndex + 1;
             }
-            return new Configuration(transition.getTo(), new TraceNode(trace, transition, lexeme), start, nextEnd);
+            TraceNode nextTrace = captureTrace ? new TraceNode(trace, transition, lexeme) : null;
+            return new Configuration(
+                transition.getTo(),
+                nextTrace,
+                start,
+                nextEnd,
+                startTokenIndex,
+                nextEndTokenIndex
+            );
+        }
+    }
+
+    private static final class FindSpan {
+        private final int start;
+        private final int end;
+        private final int startTokenIndex;
+        private final int endTokenIndex;
+
+        private FindSpan(int start, int end, int startTokenIndex, int endTokenIndex) {
+            this.start = start;
+            this.end = end;
+            this.startTokenIndex = startTokenIndex;
+            this.endTokenIndex = endTokenIndex;
         }
     }
 

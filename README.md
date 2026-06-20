@@ -1384,15 +1384,15 @@ text containing three valid simplified SQL queries and ten deliberately invalid
 mvn -Dpriluka.perf=true \
     -Dtest=ParserPerformanceTest#findsValidSqlQueriesInLargeTokenizableText \
     -Dpriluka.parser.find.bytes=102400 \
-    -Dpriluka.perf.warmup=1 \
-    -Dpriluka.perf.runs=1 \
+    -Dpriluka.perf.warmup=2 \
+    -Dpriluka.perf.runs=5 \
     test
 ```
 
 Current local result:
 
 ```text
-sql-find bytes=102411 valid=3 avg=0.1194s speed=0.82 MiB/s
+sql-find bytes=102411 valid=3 avg=0.0486s speed=2.01 MiB/s
 ```
 
 It also includes a small SQL `select` grammar that exercises keyword/identifier
