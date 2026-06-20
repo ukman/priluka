@@ -1463,6 +1463,7 @@ On a warmed 500 KiB run:
 ```text
 present-perfect-find bytes=512026 valid=5 avg=0.1021s speed=4.78 MiB/s
 present-perfect-lexer bytes=512026 tokens=101995 avg=0.0590s speed=8.27 MiB/s tokens=1727584/s
+present-perfect-hand-scanner bytes=512026 words=101995 keywords=101995 avg=0.0045s speed=107.83 MiB/s words=22522305/s
 ```
 
 It also includes a small SQL `select` grammar that exercises keyword/identifier

@@ -21,7 +21,10 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 class ParserPerformanceTest {
     private static final int WARMUP_RUNS = Integer.getInteger("priluka.perf.warmup", 1);
@@ -212,6 +215,40 @@ class ParserPerformanceTest {
 
         double averageSeconds = (totalNanos / (double) MEASURE_RUNS) / 1_000_000_000.0;
         System.out.println(new LexerResult("present-perfect-lexer", input.length(), tokens, averageSeconds));
+    }
+
+    @Test
+    void scansPresentPerfectEnglishTextWithHandWrittenWordScanner() {
+        Assumptions.assumeTrue(
+            Boolean.getBoolean("priluka.perf"),
+            "Manual parser performance dump. Run with -Dpriluka.perf=true -Dtest=ParserPerformanceTest."
+        );
+
+        Map<String, Integer> keywords = presentPerfectKeywordMap();
+        String input = generatedPresentPerfectText(
+            Integer.getInteger("priluka.parser.perfect.bytes", 100 * 1024)
+        );
+
+        ScannerStats stats = null;
+        for (int i = 0; i < WARMUP_RUNS; i++) {
+            stats = scanWords(input, keywords);
+        }
+
+        long totalNanos = 0;
+        for (int i = 0; i < MEASURE_RUNS; i++) {
+            long start = System.nanoTime();
+            stats = scanWords(input, keywords);
+            totalNanos += System.nanoTime() - start;
+        }
+
+        double averageSeconds = (totalNanos / (double) MEASURE_RUNS) / 1_000_000_000.0;
+        System.out.println(new ScannerResult(
+            "present-perfect-hand-scanner",
+            input.length(),
+            stats.words,
+            stats.keywordHits,
+            averageSeconds
+        ));
     }
 
     private Result measurePublic(Parser.InitializedParser parser, String label, String input) {
@@ -456,6 +493,51 @@ class ParserPerformanceTest {
         return Lexers.defaultLexer(new LexerSpec(terminals), LexerOptions.DEFAULT);
     }
 
+    private Map<String, Integer> presentPerfectKeywordMap() {
+        Map<String, Integer> result = new HashMap<String, Integer>();
+        addEnumKeywords(result, 1, PresentPerfectGrammar.Pronoun.class);
+        addEnumKeywords(result, 2, PresentPerfectGrammar.HaveHas.class);
+        addEnumKeywords(result, 3, PresentPerfectGrammar.ParticipleVerb.class);
+        return result;
+    }
+
+    private void addEnumKeywords(Map<String, Integer> keywords, int kind, Class<? extends Enum<?>> enumType) {
+        Enum<?>[] constants = enumType.getEnumConstants();
+        for (int i = 0; i < constants.length; i++) {
+            keywords.put(constants[i].name().toLowerCase(Locale.ROOT), Integer.valueOf(kind));
+        }
+    }
+
+    private ScannerStats scanWords(String input, Map<String, Integer> keywords) {
+        int words = 0;
+        int keywordHits = 0;
+        int position = 0;
+        while (position < input.length()) {
+            char c = input.charAt(position);
+            if (!isAsciiLetter(c)) {
+                position++;
+                continue;
+            }
+
+            int start = position;
+            position++;
+            while (position < input.length() && isAsciiLetter(input.charAt(position))) {
+                position++;
+            }
+
+            words++;
+            Integer keyword = keywords.get(input.substring(start, position));
+            if (keyword != null) {
+                keywordHits++;
+            }
+        }
+        return new ScannerStats(words, keywordHits);
+    }
+
+    private boolean isAsciiLetter(char c) {
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+    }
+
     private String generatedPresentPerfectText(int targetBytes) {
         String[] valid = new String[] {
             " i have started ",
@@ -628,6 +710,50 @@ class ParserPerformanceTest {
                 Double.valueOf(averageSeconds),
                 Double.valueOf(mebibytesPerSecond),
                 Double.valueOf(tokensPerSecond)
+            );
+        }
+    }
+
+    private static final class ScannerStats {
+        private final int words;
+        private final int keywordHits;
+
+        private ScannerStats(int words, int keywordHits) {
+            this.words = words;
+            this.keywordHits = keywordHits;
+        }
+    }
+
+    private static final class ScannerResult {
+        private final String label;
+        private final int bytes;
+        private final int words;
+        private final int keywordHits;
+        private final double averageSeconds;
+        private final double mebibytesPerSecond;
+        private final double wordsPerSecond;
+
+        private ScannerResult(String label, int bytes, int words, int keywordHits, double averageSeconds) {
+            this.label = label;
+            this.bytes = bytes;
+            this.words = words;
+            this.keywordHits = keywordHits;
+            this.averageSeconds = averageSeconds;
+            this.mebibytesPerSecond = (bytes / (1024.0 * 1024.0)) / averageSeconds;
+            this.wordsPerSecond = words / averageSeconds;
+        }
+
+        @Override
+        public String toString() {
+            return String.format(
+                "%s bytes=%d words=%d keywords=%d avg=%.4fs speed=%.2f MiB/s words=%.0f/s",
+                label,
+                Integer.valueOf(bytes),
+                Integer.valueOf(words),
+                Integer.valueOf(keywordHits),
+                Double.valueOf(averageSeconds),
+                Double.valueOf(mebibytesPerSecond),
+                Double.valueOf(wordsPerSecond)
             );
         }
     }
