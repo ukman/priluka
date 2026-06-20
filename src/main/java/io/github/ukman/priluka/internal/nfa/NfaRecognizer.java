@@ -163,20 +163,24 @@ public final class NfaRecognizer {
             if (accepted != null) {
                 best = betterFindSpan(best, accepted);
             }
-            if (best != null && !hasActiveStartAtOrBefore(active, best.start)) {
-                return best;
+            if (best != null) {
+                active = configurationsStartingAtOrBefore(active, best.start);
+                if (active.isEmpty()) {
+                    return best;
+                }
             }
         }
         return best;
     }
 
-    private boolean hasActiveStartAtOrBefore(List<Configuration> active, int start) {
+    private List<Configuration> configurationsStartingAtOrBefore(List<Configuration> active, int start) {
+        List<Configuration> result = new ArrayList<Configuration>();
         for (Configuration configuration : active) {
             if (configuration.start <= start) {
-                return true;
+                result.add(configuration);
             }
         }
-        return false;
+        return result;
     }
 
     private boolean canStartAt(Lexeme lexeme) {
