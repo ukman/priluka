@@ -17,6 +17,15 @@ class AnnotationContractTest {
 
         assertNotNull(terminal);
         assertEquals("[0-9]+", terminal.regexp());
+        assertEquals(7, terminal.priority());
+    }
+
+    @Test
+    void keywordPriorityIsAvailableAtRuntime() {
+        Keyword keyword = If.class.getAnnotation(Keyword.class);
+
+        assertNotNull(keyword);
+        assertEquals(11, keyword.priority());
     }
 
     @Test
@@ -40,8 +49,12 @@ class AnnotationContractTest {
         assertEquals("month", parameters[1].getAnnotation(RegexGroup.class).name());
     }
 
-    @Terminal(regexp = "[0-9]+")
+    @Terminal(regexp = "[0-9]+", priority = 7)
     static class IntNumber {
+    }
+
+    @Keyword(priority = 11)
+    static class If {
     }
 
     @Terminal(regexp = ",")

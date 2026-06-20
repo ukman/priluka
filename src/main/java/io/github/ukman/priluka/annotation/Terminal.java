@@ -16,4 +16,6 @@ public @interface Terminal {
     String regexp() default "";
 
     String regex() default "";
+
+    int priority() default 0;
 }

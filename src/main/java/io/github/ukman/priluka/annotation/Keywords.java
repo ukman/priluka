@@ -14,4 +14,6 @@ import java.lang.annotation.Target;
 @Target(ElementType.TYPE)
 public @interface Keywords {
     boolean caseSensitive() default true;
+
+    int priority() default 0;
 }

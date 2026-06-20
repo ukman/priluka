@@ -16,4 +16,6 @@ public @interface Keyword {
     String value() default "";
 
     boolean caseSensitive() default true;
+
+    int priority() default 0;
 }

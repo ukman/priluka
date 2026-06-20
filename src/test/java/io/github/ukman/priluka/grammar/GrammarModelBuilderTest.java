@@ -59,6 +59,13 @@ class GrammarModelBuilderTest {
         assertEquals("NonEmptyNumberArray => (Integer (Comma Integer)* Comma?)", model.toBnf());
     }
 
+    @Test
+    void terminalSymbolKeepsLexerPriority() {
+        GrammarModel model = Parser.describe(IdentifierExpression.class);
+
+        assertEquals(13, model.getTerminals().get(0).getPriority());
+    }
+
     static class Point {
         public Point(Integer x, Integer y) {
         }
@@ -108,5 +115,14 @@ class GrammarModelBuilderTest {
             @OneOrMore @Separator(value = Comma.class, trailing = true) Integer[] numbers
         ) {
         }
+    }
+
+    static class IdentifierExpression {
+        public IdentifierExpression(Id id) {
+        }
+    }
+
+    @Terminal(regexp = "[A-Za-z_][A-Za-z0-9_]*", priority = 13)
+    static class Id {
     }
 }

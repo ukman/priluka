@@ -854,6 +854,163 @@ This keeps very small grammars compact while still allowing custom terminal
 classes such as `IntNumber` when the user wants a named grammar symbol,
 additional validation, source metadata, or domain behavior.
 
+## Lexer
+
+The first lexer implementation should use the standard Java regular expression
+engine instead of a custom regex engine.
+
+The key optimization is to build one master regexp from all terminal regexps:
+
+```text
+(?<T0>regexp0)|(?<T1>regexp1)|(?<T2>regexp2)|...
+```
+
+or, if named groups are inconvenient for generated branch names:
+
+```text
+(regexp0)|(regexp1)|(regexp2)|...
+```
+
+At each token boundary, the lexer applies the single compiled `Pattern` once
+with `Matcher.lookingAt()`. The branch group that matched identifies at least
+one terminal candidate.
+
+Conceptually:
+
+```text
+TerminalSymbol[]
+    => master Pattern
+    => one regex match per token boundary
+    => Lexeme(start, len, text, possibleTerminalTypes)
+```
+
+This avoids trying every terminal regexp at every character position while
+still relying on Java's standard regex implementation.
+
+There is one important limitation: a master regexp branch tells which
+alternative Java regex selected, but it does not automatically reveal every
+terminal regexp that could match the same text.
+
+Example:
+
+```java
+@Keyword
+class If {
+}
+
+@Terminal(regexp = "[a-zA-Z_][a-zA-Z0-9_]*")
+class Id {
+}
+```
+
+For input `"if"`, both `If` and `Id` should be possible terminal types. A plain
+regexp alternation may report only the branch that won according to regexp
+alternation order.
+
+Therefore the lexer should use a two-step strategy:
+
+1. Use the master regexp to find the next lexeme quickly.
+2. Re-check terminal regexps against only that lexeme text to collect all
+   terminal types that match the same full span.
+
+For input `"if"`:
+
+```text
+master regexp finds text "if"
+full-span recheck finds { If.class, Id.class }
+```
+
+For input `"ifx"`:
+
+```text
+master regexp finds text "ifx"
+full-span recheck finds { Id.class }
+```
+
+This preserves ambiguity between terminal types for the same lexeme while
+avoiding all-regexps-at-all-positions scanning.
+
+The first lexer can use maximal munch at token boundaries. If Java regexp
+alternation order would otherwise choose a shorter branch, terminal branches in
+the master regexp must be ordered or structured so the produced lexeme is the
+longest match supported by the terminal set.
+
+Branch ordering should use lexer priority, not grammar precedence. This is a
+lexical concern only:
+
+```java
+@Terminal(regexp = "...", priority = 100)
+class SomeToken {
+}
+
+@Keyword(value = "if", priority = 10)
+class If {
+}
+```
+
+The initial ordering strategy:
+
+```text
+priority descending
+general regexp / built-in terminals before keywords
+fixed text length descending for keywords
+explicit class-array order when available
+class name as final stable fallback
+```
+
+Keywords can also be optimized before master-regexp construction.
+
+Most language keywords match the identifier regexp:
+
+```java
+@Keyword
+class If {
+}
+
+@Terminal(regexp = "[A-Za-z_][A-Za-z0-9_]*")
+class Id {
+}
+```
+
+The lexer builder can test each keyword text against non-keyword terminal
+regexps:
+
+```text
+"if" matches Id
+"if" does not match Integer
+```
+
+If a keyword is covered by a carrier regexp such as `Id`, the keyword does not
+need its own branch in the master regexp. Instead, when the lexer finds an `Id`
+lexeme, it checks the lexeme text in a keyword table and adds matching keyword
+terminal types.
+
+Conceptually:
+
+```text
+master regexp branches: Id, Integer, Double, ...
+keyword table for Id: "if" -> If.class, "else" -> Else.class
+```
+
+For input `"if"`:
+
+```text
+master regexp finds Id("if")
+keyword table adds If
+tokenTypes = { Id.class, If.class }
+```
+
+For input `"123"`:
+
+```text
+master regexp finds Integer("123")
+no Id keyword table is checked
+tokenTypes = { Integer.class }
+```
+
+This keeps the master regexp smaller and avoids keyword bloat in the common
+case where all keywords are special cases of identifiers.
+
 ## Parser Engines
 
 Priluka should separate grammar discovery from parser execution.
@@ -1115,6 +1272,13 @@ classes.
 - What exact grammar subset qualifies for the fast automaton/NFA engine?
 - How should the NFA engine report that a grammar is outside the supported
   automaton-like subset?
+- How should the master lexer regexp guarantee maximal munch when Java regexp
+  alternation can prefer an earlier shorter alternative?
+- Should same-span terminal ambiguity be collected by re-checking all terminal
+  regexps, or only terminal regexps that could plausibly match based on a
+  precomputed index?
+- Should covered keywords be removed from the master regexp whenever they match
+  a carrier terminal such as `Id`, or should this optimization be configurable?
 - Should the NFA simulation store full traces for all active paths, or use a
   compact predecessor/backpointer structure and reconstruct only the accepting
   path?
@@ -1195,6 +1359,11 @@ classes.
 - A pure accept/reject NFA is insufficient for Priluka. The engine must preserve
   production identity and child values, otherwise it cannot reconstruct the Java
   object graph after parsing.
+- A master lexer regexp is fast and uses the standard Java engine, but regexp
+  alternation alone does not preserve all same-span terminal ambiguities. Priluka
+  must explicitly re-check the chosen lexeme text when ambiguity matters.
+- Keyword preprocessing can keep the master regexp small, but it depends on
+  correctly identifying carrier terminals such as `Id`.
 
 ## Ideas To Explore
 
