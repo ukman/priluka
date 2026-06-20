@@ -12,7 +12,7 @@ class ArithmeticExpressionParserTest {
             .initFromOuterClass(ArithmeticGrammar.class)
             .parse(ArithmeticGrammar.Expression.class, "1+2*3-4/2");
 
-        assertEquals(5, expression.eval());
+        assertEquals(5, expression.calculate());
     }
 
     @Test
@@ -21,7 +21,7 @@ class ArithmeticExpressionParserTest {
             .initFromOuterClass(ArithmeticGrammar.class)
             .parse(ArithmeticGrammar.Expression.class, "(1+2)*(3-4/2)");
 
-        assertEquals(3, expression.eval());
+        assertEquals(3, expression.calculate());
     }
 
     @Test
@@ -30,7 +30,7 @@ class ArithmeticExpressionParserTest {
             .initFromOuterClass(ArithmeticGrammar.class)
             .parse(ArithmeticGrammar.Expression.class, " 10 + 2 * ( 8 - 3 ) ");
 
-        assertEquals(20, expression.eval());
+        assertEquals(20, expression.calculate());
     }
 
     static final class ArithmeticGrammar {
@@ -43,13 +43,13 @@ class ArithmeticExpressionParserTest {
                 this.tail = tail;
             }
 
-            int eval() {
-                return tail.apply(term.eval());
+            int calculate() {
+                return tail.calculate(term.calculate());
             }
         }
 
         interface ExpressionTail {
-            int apply(int left);
+            int calculate(int left);
         }
 
         static class AddExpressionTail implements ExpressionTail {
@@ -64,8 +64,8 @@ class ArithmeticExpressionParserTest {
             }
 
             @Override
-            public int apply(int left) {
-                return tail.apply(left + term.eval());
+            public int calculate(int left) {
+                return tail.calculate(left + term.calculate());
             }
         }
 
@@ -81,8 +81,8 @@ class ArithmeticExpressionParserTest {
             }
 
             @Override
-            public int apply(int left) {
-                return tail.apply(left - term.eval());
+            public int calculate(int left) {
+                return tail.calculate(left - term.calculate());
             }
         }
 
@@ -91,7 +91,7 @@ class ArithmeticExpressionParserTest {
             }
 
             @Override
-            public int apply(int left) {
+            public int calculate(int left) {
                 return left;
             }
         }
@@ -105,13 +105,13 @@ class ArithmeticExpressionParserTest {
                 this.tail = tail;
             }
 
-            int eval() {
-                return tail.apply(factor.eval());
+            int calculate() {
+                return tail.calculate(factor.calculate());
             }
         }
 
         interface TermTail {
-            int apply(int left);
+            int calculate(int left);
         }
 
         static class DivideTermTail implements TermTail {
@@ -126,8 +126,8 @@ class ArithmeticExpressionParserTest {
             }
 
             @Override
-            public int apply(int left) {
-                return tail.apply(left / factor.eval());
+            public int calculate(int left) {
+                return tail.calculate(left / factor.calculate());
             }
         }
 
@@ -143,8 +143,8 @@ class ArithmeticExpressionParserTest {
             }
 
             @Override
-            public int apply(int left) {
-                return tail.apply(left * factor.eval());
+            public int calculate(int left) {
+                return tail.calculate(left * factor.calculate());
             }
         }
 
@@ -153,13 +153,13 @@ class ArithmeticExpressionParserTest {
             }
 
             @Override
-            public int apply(int left) {
+            public int calculate(int left) {
                 return left;
             }
         }
 
         interface Factor {
-            int eval();
+            int calculate();
         }
 
         static class NumberFactor implements Factor {
@@ -170,7 +170,7 @@ class ArithmeticExpressionParserTest {
             }
 
             @Override
-            public int eval() {
+            public int calculate() {
                 return value.intValue();
             }
         }
@@ -187,8 +187,8 @@ class ArithmeticExpressionParserTest {
             }
 
             @Override
-            public int eval() {
-                return expression.eval();
+            public int calculate() {
+                return expression.calculate();
             }
         }
 
