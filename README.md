@@ -1280,23 +1280,22 @@ Current local result:
 
 ```text
 public-parser-auto bytes=1025 values=171 avg=0.0080s speed=0.12 MiB/s values=21274/s
-cached-nfa-engine bytes=1025 values=171 avg=0.0051s speed=0.19 MiB/s values=33363/s
-cached-reflective-engine bytes=1025 values=171 avg=0.0056s speed=0.17 MiB/s values=30271/s
+cached-nfa-engine bytes=1025 values=171 avg=0.0030s speed=0.33 MiB/s values=57197/s
+cached-reflective-engine bytes=1025 values=171 avg=0.0092s speed=0.11 MiB/s values=18650/s
 
-public-parser-auto bytes=10241 values=1707 avg=0.0723s speed=0.14 MiB/s values=23603/s
-cached-nfa-engine bytes=10241 values=1707 avg=0.0362s speed=0.27 MiB/s values=47200/s
-cached-reflective-engine bytes=10241 values=1707 avg=0.0505s speed=0.19 MiB/s values=33770/s
+public-parser-auto bytes=10241 values=1707 avg=0.0464s speed=0.21 MiB/s values=36805/s
+cached-nfa-engine bytes=10241 values=1707 avg=0.0248s speed=0.39 MiB/s values=68844/s
+cached-reflective-engine bytes=10241 values=1707 avg=0.0642s speed=0.15 MiB/s values=26569/s
 
-public-parser-auto bytes=102401 values=17067 avg=2.2450s speed=0.04 MiB/s values=7602/s
-cached-nfa-engine bytes=102401 values=17067 avg=2.2870s speed=0.04 MiB/s values=7463/s
-cached-reflective-engine bytes=102401 values=17067 avg=10.2026s speed=0.01 MiB/s values=1673/s
+public-parser-auto bytes=102401 values=17067 avg=0.1559s speed=0.63 MiB/s values=109484/s
+cached-nfa-engine bytes=102401 values=17067 avg=0.1249s speed=0.78 MiB/s values=136605/s
+cached-reflective-engine bytes=102401 values=17067 avg=9.3492s speed=0.01 MiB/s values=1826/s
 ```
 
-The 100 KiB result shows that the current NFA path is already much faster than
-the reflective parser on the cached-engine comparison, but its absolute speed is
-still poor. The likely hot spot is the current NFA trace representation: every
-configuration stores a copied list of trace steps. A backpointer chain should be
-the next optimization target.
+The 100 KiB cached-engine comparison shows the NFA path roughly 75x faster than
+the reflective parser after switching NFA trace storage to a backpointer chain.
+The remaining cost is now more likely in lexing, object construction, and public
+parser model/engine setup.
 
 The same `ParserPerformanceTest` also contains an NFA-compatible simplified
 SQL `select` grammar without recursive expressions, `where`, or subqueries. It
@@ -1325,17 +1324,17 @@ mvn -Dpriluka.perf=true \
 Current local result:
 
 ```text
-simplified-sql public-parser-auto bytes=1081 values=114 avg=0.0246s speed=0.04 MiB/s values=4629/s
-simplified-sql cached-nfa-engine bytes=1081 values=114 avg=0.0100s speed=0.10 MiB/s values=11413/s
-simplified-sql cached-reflective-engine bytes=1081 values=114 avg=0.0130s speed=0.08 MiB/s values=8799/s
+simplified-sql public-parser-auto bytes=1081 values=114 avg=0.0156s speed=0.07 MiB/s values=7328/s
+simplified-sql cached-nfa-engine bytes=1081 values=114 avg=0.0080s speed=0.13 MiB/s values=14328/s
+simplified-sql cached-reflective-engine bytes=1081 values=114 avg=0.0136s speed=0.08 MiB/s values=8365/s
 
-simplified-sql public-parser-auto bytes=10301 values=1033 avg=0.2923s speed=0.03 MiB/s values=3534/s
-simplified-sql cached-nfa-engine bytes=10301 values=1033 avg=0.1991s speed=0.05 MiB/s values=5189/s
-simplified-sql cached-reflective-engine bytes=10301 values=1033 avg=0.1848s speed=0.05 MiB/s values=5591/s
+simplified-sql public-parser-auto bytes=10301 values=1033 avg=0.0528s speed=0.19 MiB/s values=19561/s
+simplified-sql cached-nfa-engine bytes=10301 values=1033 avg=0.0306s speed=0.32 MiB/s values=33745/s
+simplified-sql cached-reflective-engine bytes=10301 values=1033 avg=0.3041s speed=0.03 MiB/s values=3396/s
 
-simplified-sql public-parser-auto bytes=51265 values=4757 avg=3.1823s speed=0.02 MiB/s values=1495/s
-simplified-sql cached-nfa-engine bytes=51265 values=4757 avg=3.2030s speed=0.02 MiB/s values=1485/s
-simplified-sql cached-reflective-engine bytes=51265 values=4757 avg=3.6383s speed=0.01 MiB/s values=1307/s
+simplified-sql public-parser-auto bytes=51265 values=4757 avg=0.1509s speed=0.32 MiB/s values=31525/s
+simplified-sql cached-nfa-engine bytes=51265 values=4757 avg=0.0828s speed=0.59 MiB/s values=57448/s
+simplified-sql cached-reflective-engine bytes=51265 values=4757 avg=3.6451s speed=0.01 MiB/s values=1305/s
 ```
 
 This grammar is intentionally acyclic and has a test that checks

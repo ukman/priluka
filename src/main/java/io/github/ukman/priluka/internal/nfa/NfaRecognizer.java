@@ -78,7 +78,7 @@ public final class NfaRecognizer {
         }
         for (Configuration configuration : active) {
             if (configuration.state.equals(graph.getAccept())) {
-                return new ParseTrace(traceEvents(configuration.steps));
+                return new ParseTrace(traceEvents(configuration.trace));
             }
         }
         return null;
@@ -114,11 +114,12 @@ public final class NfaRecognizer {
         return result;
     }
 
-    private List<ParseTraceEvent> traceEvents(List<TraceStep> steps) {
+    private List<ParseTraceEvent> traceEvents(TraceNode trace) {
         List<ParseTraceEvent> events = new ArrayList<ParseTraceEvent>();
         Deque<RepeatContext> repeats = new ArrayDeque<RepeatContext>();
-        for (TraceStep step : steps) {
-            NfaTransition transition = step.transition;
+        List<TraceNode> nodes = traceNodes(trace);
+        for (TraceNode node : nodes) {
+            NfaTransition transition = node.transition;
             switch (transition.getKind()) {
                 case BEGIN_PRODUCTION:
                     events.add(ParseTraceEvent.beginProduction(transition.getProduction()));
@@ -129,9 +130,9 @@ public final class NfaRecognizer {
                 case TERMINAL:
                     events.add(ParseTraceEvent.consumeTerminal(
                         transition.getSymbolType(),
-                        step.lexeme.getText(),
-                        step.lexeme.getStart(),
-                        step.lexeme.getLen()
+                        node.lexeme.getText(),
+                        node.lexeme.getStart(),
+                        node.lexeme.getLen()
                     ));
                     break;
                 case BEGIN_REPEAT:
@@ -163,6 +164,21 @@ public final class NfaRecognizer {
         return events;
     }
 
+    private List<TraceNode> traceNodes(TraceNode trace) {
+        Deque<TraceNode> stack = new ArrayDeque<TraceNode>();
+        TraceNode current = trace;
+        while (current != null) {
+            stack.push(current);
+            current = current.previous;
+        }
+
+        List<TraceNode> result = new ArrayList<TraceNode>(stack.size());
+        while (!stack.isEmpty()) {
+            result.add(stack.pop());
+        }
+        return result;
+    }
+
     private static Lexer lexerFor(GrammarModel model) {
         return Lexers.defaultLexer(new LexerSpec(terminalsWithImplicitWhitespace(model)), LexerOptions.DEFAULT);
     }
@@ -178,29 +194,29 @@ public final class NfaRecognizer {
 
     private static final class Configuration {
         private final NfaState state;
-        private final List<TraceStep> steps;
+        private final TraceNode trace;
 
         private Configuration(NfaState state) {
-            this(state, new ArrayList<TraceStep>());
+            this(state, null);
         }
 
-        private Configuration(NfaState state, List<TraceStep> steps) {
+        private Configuration(NfaState state, TraceNode trace) {
             this.state = state;
-            this.steps = steps;
+            this.trace = trace;
         }
 
         private Configuration advance(NfaTransition transition, Lexeme lexeme) {
-            List<TraceStep> nextSteps = new ArrayList<TraceStep>(steps);
-            nextSteps.add(new TraceStep(transition, lexeme));
-            return new Configuration(transition.getTo(), nextSteps);
+            return new Configuration(transition.getTo(), new TraceNode(trace, transition, lexeme));
         }
     }
 
-    private static final class TraceStep {
+    private static final class TraceNode {
+        private final TraceNode previous;
         private final NfaTransition transition;
         private final Lexeme lexeme;
 
-        private TraceStep(NfaTransition transition, Lexeme lexeme) {
+        private TraceNode(TraceNode previous, NfaTransition transition, Lexeme lexeme) {
+            this.previous = previous;
             this.transition = transition;
             this.lexeme = lexeme;
         }
