@@ -15,7 +15,9 @@ import io.github.ukman.priluka.internal.lexer.Lexers;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -27,7 +29,6 @@ public final class ReflectiveParser {
     private final Map<Class<?>, TerminalSymbol> terminals = new LinkedHashMap<Class<?>, TerminalSymbol>();
     private final boolean debug;
     private final ParseDebugStats debugStats = new ParseDebugStats();
-    private int parseDepth;
 
     public ReflectiveParser(GrammarModel model) {
         this.model = model;
@@ -43,7 +44,6 @@ public final class ReflectiveParser {
     public <S> S parse(Class<S> start, String input) {
         if (debug) {
             debugStats.reset();
-            parseDepth = 0;
         }
         Lexer lexer = Lexers.defaultLexer(new LexerSpec(terminalsWithImplicitWhitespace()), LexerOptions.DEFAULT);
         List<Lexeme> lexemes = lexer.tokenize(input);
@@ -91,87 +91,182 @@ public final class ReflectiveParser {
     }
 
     private List<ParseResult> parseNonterminal(Class<?> type, List<Lexeme> lexemes, int position) {
-        if (debug) {
-            debugStats.nonterminalCalls++;
-            parseDepth++;
-            if (parseDepth > debugStats.maxParseDepth) {
-                debugStats.maxParseDepth = parseDepth;
+        final List<ParseResult> results = new ArrayList<ParseResult>();
+        Deque<ParseFrame> frames = new ArrayDeque<ParseFrame>();
+        frames.push(new NonterminalFrame(type, lexemes, position, new ResultSink() {
+            @Override
+            public void accept(ParseResult result) {
+                results.add(result);
             }
+        }, 1));
+        runFrames(frames);
+        return results;
+    }
+
+    private void runFrames(Deque<ParseFrame> frames) {
+        while (!frames.isEmpty()) {
+            frames.pop().run(frames);
         }
-        try {
-            NonterminalSymbol nonterminal = nonterminals.get(type);
-            if (nonterminal == null) {
-                return new ArrayList<ParseResult>();
+    }
+
+    private final class NonterminalFrame implements ParseFrame {
+        private final Class<?> type;
+        private final List<Lexeme> lexemes;
+        private final int position;
+        private final ResultSink sink;
+        private final int depth;
+
+        private NonterminalFrame(Class<?> type, List<Lexeme> lexemes, int position, ResultSink sink, int depth) {
+            this.type = type;
+            this.lexemes = lexemes;
+            this.position = position;
+            this.sink = sink;
+            this.depth = depth;
+        }
+
+        @Override
+        public void run(Deque<ParseFrame> frames) {
+            if (debug) {
+                debugStats.nonterminalCalls++;
+                if (depth > debugStats.maxParseDepth) {
+                    debugStats.maxParseDepth = depth;
+                }
             }
 
-            List<ParseResult> results = new ArrayList<ParseResult>();
-            for (Production production : nonterminal.getProductions()) {
-                results.addAll(parseProduction(production, lexemes, position));
+            NonterminalSymbol nonterminal = nonterminals.get(type);
+            if (nonterminal == null) {
+                return;
             }
-            return results;
-        } finally {
-            if (debug) {
-                parseDepth--;
+
+            List<Production> productions = nonterminal.getProductions();
+            for (int i = productions.size() - 1; i >= 0; i--) {
+                List<ParseState> states = new ArrayList<ParseState>();
+                states.add(new ParseState(position, new ArrayList<Object>()));
+                frames.push(new ProductionFrame(productions.get(i), lexemes, 0, states, sink, depth));
             }
         }
     }
 
-    private List<ParseResult> parseProduction(Production production, List<Lexeme> lexemes, int position) {
-        if (debug) {
-            debugStats.productionAttempts++;
-        }
-        List<ParseState> states = new ArrayList<ParseState>();
-        states.add(new ParseState(position, new ArrayList<Object>()));
+    private final class ProductionFrame implements ParseFrame {
+        private final Production production;
+        private final List<Lexeme> lexemes;
+        private final int partIndex;
+        private final List<ParseState> states;
+        private final ResultSink sink;
+        private final int depth;
 
-        for (ProductionPart part : production.getParts()) {
+        private ProductionFrame(
+            Production production,
+            List<Lexeme> lexemes,
+            int partIndex,
+            List<ParseState> states,
+            ResultSink sink,
+            int depth
+        ) {
+            this.production = production;
+            this.lexemes = lexemes;
+            this.partIndex = partIndex;
+            this.states = states;
+            this.sink = sink;
+            this.depth = depth;
+        }
+
+        @Override
+        public void run(Deque<ParseFrame> frames) {
+            if (partIndex == 0 && debug) {
+                debugStats.productionAttempts++;
+            }
+
+            if (partIndex == production.getParts().size()) {
+                for (ParseState state : states) {
+                    sink.accept(new ParseResult(instantiateProduction(production, state.values), state.position));
+                }
+                if (debug) {
+                    debugStats.productionMatches++;
+                    debugStats.parseResultsProduced += states.size();
+                }
+                return;
+            }
+
+            ProductionPart part = production.getParts().get(partIndex);
             if (part.getQuantifier() != ProductionPart.Quantifier.ONE) {
                 throw new ParseException("Parser v1 supports only single production parts: " + part.toBnf());
             }
+
             List<ParseState> nextStates = new ArrayList<ParseState>();
-            for (ParseState state : states) {
-                List<ParseResult> partResults = parseSymbol(part.getSymbolType(), lexemes, state.position);
-                for (ParseResult partResult : partResults) {
-                    List<Object> values = new ArrayList<Object>(state.values);
-                    values.add(partResult.value);
-                    nextStates.add(new ParseState(partResult.position, values));
+            frames.push(new AfterProductionPartFrame(production, lexemes, partIndex, nextStates, sink, depth));
+            Class<?> symbolType = part.getSymbolType();
+            if (terminals.containsKey(symbolType)) {
+                for (int i = 0; i < states.size(); i++) {
+                    ParseState state = states.get(i);
+                    List<ParseResult> partResults = parseTerminal(symbolType, lexemes, state.position);
+                    for (ParseResult partResult : partResults) {
+                        addNextState(nextStates, state, partResult);
+                    }
                 }
+                return;
             }
+
+            for (int i = states.size() - 1; i >= 0; i--) {
+                final ParseState state = states.get(i);
+                frames.push(new NonterminalFrame(symbolType, lexemes, state.position, new ResultSink() {
+                    @Override
+                    public void accept(ParseResult partResult) {
+                        addNextState(nextStates, state, partResult);
+                    }
+                }, depth + 1));
+            }
+        }
+
+        private void addNextState(List<ParseState> nextStates, ParseState state, ParseResult partResult) {
+            List<Object> values = new ArrayList<Object>(state.values);
+            values.add(partResult.value);
+            nextStates.add(new ParseState(partResult.position, values));
+        }
+    }
+
+    private final class AfterProductionPartFrame implements ParseFrame {
+        private final Production production;
+        private final List<Lexeme> lexemes;
+        private final int partIndex;
+        private final List<ParseState> nextStates;
+        private final ResultSink sink;
+        private final int depth;
+
+        private AfterProductionPartFrame(
+            Production production,
+            List<Lexeme> lexemes,
+            int partIndex,
+            List<ParseState> nextStates,
+            ResultSink sink,
+            int depth
+        ) {
+            this.production = production;
+            this.lexemes = lexemes;
+            this.partIndex = partIndex;
+            this.nextStates = nextStates;
+            this.sink = sink;
+            this.depth = depth;
+        }
+
+        @Override
+        public void run(Deque<ParseFrame> frames) {
             if (nextStates.isEmpty()) {
                 if (debug) {
                     debugStats.productionDeadEnds++;
                 }
-                return new ArrayList<ParseResult>();
+                return;
             }
-            states = nextStates;
+            frames.push(new ProductionFrame(production, lexemes, partIndex + 1, nextStates, sink, depth));
         }
-
-        List<ParseResult> results = new ArrayList<ParseResult>();
-        for (ParseState state : states) {
-            results.add(new ParseResult(instantiateProduction(production, state.values), state.position));
-        }
-        if (debug) {
-            debugStats.productionMatches++;
-            debugStats.parseResultsProduced += results.size();
-        }
-        return results;
     }
 
-    private Object instantiateProduction(Production production, List<Object> values) {
-        Constructor<?> constructor = production.getConstructor();
-        if (constructor == null) {
-            if (values.size() != 1) {
-                throw new ParseException("Interface production must produce exactly one value: " + production.toBnf());
-            }
-            return values.get(0);
-        }
-        return instantiate(constructor, values.toArray());
+    private interface ParseFrame {
+        void run(Deque<ParseFrame> frames);
     }
 
-    private List<ParseResult> parseSymbol(Class<?> type, List<Lexeme> lexemes, int position) {
-        if (terminals.containsKey(type)) {
-            return parseTerminal(type, lexemes, position);
-        }
-        return parseNonterminal(type, lexemes, position);
+    private interface ResultSink {
+        void accept(ParseResult result);
     }
 
     private List<ParseResult> parseTerminal(Class<?> type, List<Lexeme> lexemes, int position) {
@@ -197,6 +292,17 @@ public final class ReflectiveParser {
         }
         results.add(new ParseResult(terminalValue(type, lexeme), position + 1));
         return results;
+    }
+
+    private Object instantiateProduction(Production production, List<Object> values) {
+        Constructor<?> constructor = production.getConstructor();
+        if (constructor == null) {
+            if (values.size() != 1) {
+                throw new ParseException("Interface production must produce exactly one value: " + production.toBnf());
+            }
+            return values.get(0);
+        }
+        return instantiate(constructor, values.toArray());
     }
 
     private Object terminalValue(Class<?> type, Lexeme lexeme) {

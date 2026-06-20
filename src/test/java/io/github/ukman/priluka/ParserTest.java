@@ -1,9 +1,11 @@
 package io.github.ukman.priluka;
 
+import io.github.ukman.priluka.annotation.Keyword;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ParserTest {
@@ -35,6 +37,15 @@ class ParserTest {
         assertEquals(Integer.valueOf(42), ((NumberExpression) expression).value);
     }
 
+    @Test
+    void parsesDeepRightRecursiveGrammarWithoutJvmStackOverflow() {
+        DeepGrammar.Start start = Parser
+            .initFromOuterClass(DeepGrammar.class)
+            .parse(DeepGrammar.Start.class, repeatedAThenZ(1500));
+
+        assertNotNull(start);
+    }
+
     static class Point {
         final Integer x;
         final Integer y;
@@ -54,6 +65,54 @@ class ParserTest {
         NumberExpression(Integer value) {
             this.value = value;
         }
+    }
+
+    static final class DeepGrammar {
+        static class Start {
+            final Tail tail;
+
+            Start(Tail tail) {
+                this.tail = tail;
+            }
+        }
+
+        interface Tail {
+        }
+
+        static class MoreTail implements Tail {
+            final A a;
+            final Tail tail;
+
+            MoreTail(A a, Tail tail) {
+                this.a = a;
+                this.tail = tail;
+            }
+        }
+
+        static class LastTail implements Tail {
+            final Z z;
+
+            LastTail(Z z) {
+                this.z = z;
+            }
+        }
+
+        @Keyword("a")
+        static class A {
+        }
+
+        @Keyword("z")
+        static class Z {
+        }
+    }
+
+    private static String repeatedAThenZ(int count) {
+        StringBuilder result = new StringBuilder(count * 2 + 1);
+        for (int i = 0; i < count; i++) {
+            result.append("a ");
+        }
+        result.append("z");
+        return result.toString();
     }
 
     interface ThrowingRunnable extends org.junit.jupiter.api.function.Executable {
