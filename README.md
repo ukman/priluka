@@ -1184,6 +1184,8 @@ Supported in parser v1:
 - built-in values for `Integer`, `Double`, and `Boolean`
 - implicit whitespace skipping between tokens
 - right-recursive grammars such as arithmetic expressions with precedence
+- choosing a derivation that consumes the whole input, not merely the first
+  locally successful production
 
 The current parser test suite includes an arithmetic expression grammar for:
 
@@ -1198,6 +1200,21 @@ It parses expressions such as:
 (1+2)*(3-4/2)
 10 + 2 * ( 8 - 3 )
 ```
+
+It also includes a small SQL `select` grammar that exercises keyword/identifier
+ambiguity and backtracking conflicts:
+
+```text
+select * from person
+select p.* from person p
+select * from (select * from person) as t
+select last_name, first_name from db.person as p left join db.company c where p.company_id = c.id
+```
+
+The last query is deliberately useful for conflict testing because `left` can
+be seen both as a keyword and as an identifier token type. Parser v1 must avoid
+committing too early to a bare alias parse and must find the derivation where
+`left join` remains a join clause.
 
 Not supported in parser v1 yet:
 

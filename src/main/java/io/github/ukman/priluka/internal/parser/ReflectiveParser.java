@@ -37,48 +37,69 @@ public final class ReflectiveParser {
 
     public <S> S parse(Class<S> start, String input) {
         Lexer lexer = Lexers.defaultLexer(new LexerSpec(terminalsWithImplicitWhitespace()), LexerOptions.DEFAULT);
-        LexemeStream stream = new LexemeStream(lexer.tokenize(input));
-        Object result = parseNonterminal(start, stream);
-        if (result == null) {
-            throw new ParseException("Input does not match start symbol: " + start.getName());
+        List<Lexeme> lexemes = lexer.tokenize(input);
+        List<ParseResult> results = parseNonterminal(start, lexemes, 0);
+        ParseResult partial = null;
+        for (ParseResult result : results) {
+            if (result.position == lexemes.size()) {
+                return start.cast(result.value);
+            }
+            if (partial == null || result.position > partial.position) {
+                partial = result;
+            }
         }
-        if (!stream.isEnd()) {
-            Lexeme unexpected = stream.peek();
+
+        if (partial != null && partial.position < lexemes.size()) {
+            Lexeme unexpected = lexemes.get(partial.position);
             throw new ParseException("Unexpected token at offset " + unexpected.getStart() + ": " + unexpected.getText());
         }
-        return start.cast(result);
+        throw new ParseException("Input does not match start symbol: " + start.getName());
     }
 
-    private Object parseNonterminal(Class<?> type, LexemeStream stream) {
+    private List<ParseResult> parseNonterminal(Class<?> type, List<Lexeme> lexemes, int position) {
         NonterminalSymbol nonterminal = nonterminals.get(type);
         if (nonterminal == null) {
-            return null;
+            return new ArrayList<ParseResult>();
         }
 
+        List<ParseResult> results = new ArrayList<ParseResult>();
         for (Production production : nonterminal.getProductions()) {
-            int mark = stream.mark();
-            Object result = parseProduction(production, stream);
-            if (result != null) {
-                return result;
-            }
-            stream.reset(mark);
+            results.addAll(parseProduction(production, lexemes, position));
         }
-        return null;
+        return results;
     }
 
-    private Object parseProduction(Production production, LexemeStream stream) {
-        List<Object> values = new ArrayList<Object>();
+    private List<ParseResult> parseProduction(Production production, List<Lexeme> lexemes, int position) {
+        List<ParseState> states = new ArrayList<ParseState>();
+        states.add(new ParseState(position, new ArrayList<Object>()));
+
         for (ProductionPart part : production.getParts()) {
             if (part.getQuantifier() != ProductionPart.Quantifier.ONE) {
                 throw new ParseException("Parser v1 supports only single production parts: " + part.toBnf());
             }
-            Object value = parseSymbol(part.getSymbolType(), stream);
-            if (value == null) {
-                return null;
+            List<ParseState> nextStates = new ArrayList<ParseState>();
+            for (ParseState state : states) {
+                List<ParseResult> partResults = parseSymbol(part.getSymbolType(), lexemes, state.position);
+                for (ParseResult partResult : partResults) {
+                    List<Object> values = new ArrayList<Object>(state.values);
+                    values.add(partResult.value);
+                    nextStates.add(new ParseState(partResult.position, values));
+                }
             }
-            values.add(value);
+            if (nextStates.isEmpty()) {
+                return new ArrayList<ParseResult>();
+            }
+            states = nextStates;
         }
 
+        List<ParseResult> results = new ArrayList<ParseResult>();
+        for (ParseState state : states) {
+            results.add(new ParseResult(instantiateProduction(production, state.values), state.position));
+        }
+        return results;
+    }
+
+    private Object instantiateProduction(Production production, List<Object> values) {
         Constructor<?> constructor = production.getConstructor();
         if (constructor == null) {
             if (values.size() != 1) {
@@ -89,20 +110,24 @@ public final class ReflectiveParser {
         return instantiate(constructor, values.toArray());
     }
 
-    private Object parseSymbol(Class<?> type, LexemeStream stream) {
+    private List<ParseResult> parseSymbol(Class<?> type, List<Lexeme> lexemes, int position) {
         if (terminals.containsKey(type)) {
-            return parseTerminal(type, stream);
+            return parseTerminal(type, lexemes, position);
         }
-        return parseNonterminal(type, stream);
+        return parseNonterminal(type, lexemes, position);
     }
 
-    private Object parseTerminal(Class<?> type, LexemeStream stream) {
-        Lexeme lexeme = stream.peek();
-        if (lexeme == null || !lexeme.hasTerminal(type)) {
-            return null;
+    private List<ParseResult> parseTerminal(Class<?> type, List<Lexeme> lexemes, int position) {
+        List<ParseResult> results = new ArrayList<ParseResult>();
+        if (position >= lexemes.size()) {
+            return results;
         }
-        stream.consume();
-        return terminalValue(type, lexeme);
+        Lexeme lexeme = lexemes.get(position);
+        if (!lexeme.hasTerminal(type)) {
+            return results;
+        }
+        results.add(new ParseResult(terminalValue(type, lexeme), position + 1));
+        return results;
     }
 
     private Object terminalValue(Class<?> type, Lexeme lexeme) {
@@ -174,5 +199,25 @@ public final class ReflectiveParser {
     }
 
     private static final class ImplicitWhitespace {
+    }
+
+    private static final class ParseState {
+        private final int position;
+        private final List<Object> values;
+
+        private ParseState(int position, List<Object> values) {
+            this.position = position;
+            this.values = values;
+        }
+    }
+
+    private static final class ParseResult {
+        private final Object value;
+        private final int position;
+
+        private ParseResult(Object value, int position) {
+            this.value = value;
+            this.position = position;
+        }
     }
 }
