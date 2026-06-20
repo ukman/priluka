@@ -1,0 +1,29 @@
+package io.github.ukman.priluka;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+public final class ParseTrace {
+    private final List<String> events;
+
+    public ParseTrace(List<String> events) {
+        this.events = Collections.unmodifiableList(new ArrayList<String>(events));
+    }
+
+    public List<String> getEvents() {
+        return events;
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < events.size(); i++) {
+            if (i > 0) {
+                builder.append(System.lineSeparator());
+            }
+            builder.append(events.get(i));
+        }
+        return builder.toString();
+    }
+}

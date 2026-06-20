@@ -4,6 +4,8 @@ import io.github.ukman.priluka.annotation.Keyword;
 import io.github.ukman.priluka.annotation.Keywords;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -26,6 +28,20 @@ class ParserTest {
                 Parser.parse(Point.class, "456 78 90");
             }
         });
+    }
+
+    @Test
+    void returnsParseTraceWithConstructedValue() {
+        ParseTraceResult<Point> result = Parser.trace(Point.class, "456 78");
+
+        assertEquals(Integer.valueOf(456), result.getValue().x);
+        assertEquals(Integer.valueOf(78), result.getValue().y);
+
+        List<String> events = result.getTrace().getEvents();
+        assertEquals("beginProduction(Point => Integer Integer)", events.get(0));
+        assertEquals("consumeTerminal(Integer, \"456\", start=0, len=3)", events.get(1));
+        assertEquals("consumeTerminal(Integer, \"78\", start=4, len=2)", events.get(2));
+        assertEquals("endProduction(Point => Integer Integer)", events.get(3));
     }
 
     @Test

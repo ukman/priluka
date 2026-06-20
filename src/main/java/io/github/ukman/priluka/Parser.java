@@ -23,6 +23,10 @@ public final class Parser {
         return init(start).parse(start, input);
     }
 
+    public static <S> ParseTraceResult<S> trace(Class<S> start, String input) {
+        return init(start).trace(start, input);
+    }
+
     public static GrammarModel describe(Class<?> start) {
         return init(start).describe(start);
     }
@@ -37,6 +41,11 @@ public final class Parser {
         public <S> S parse(Class<S> start, String input) {
             GrammarModel model = describe(start);
             return new ReflectiveParser(model).parse(start, input);
+        }
+
+        public <S> ParseTraceResult<S> trace(Class<S> start, String input) {
+            GrammarModel model = describe(start);
+            return new ReflectiveParser(model).parseWithTrace(start, input);
         }
 
         public GrammarModel describe(Class<?> start) {

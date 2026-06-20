@@ -103,6 +103,20 @@ class SeparatedArrayParserTest {
         assertEquals(false, number.minus.isPresent());
     }
 
+    @Test
+    void returnsTraceForSeparatedList() {
+        ParseTraceResult<ListNumberCollection> result = Parser
+            .init(ListNumberCollection.class, Comma.class)
+            .trace(ListNumberCollection.class, "3,4");
+
+        List<String> events = result.getTrace().getEvents();
+        assertEquals(Arrays.asList(3, 4), result.getValue().values);
+        assertEquals(true, events.contains("beginRepeat(Integer)"));
+        assertEquals(true, events.contains("appendRepeatElement(Integer)"));
+        assertEquals(true, events.contains("endRepeat(Integer, count=2)"));
+        assertEquals(true, events.contains("consumeTerminal(Comma, \",\", start=1, len=1)"));
+    }
+
     static class ListNumbers {
         final Integer[] values;
 

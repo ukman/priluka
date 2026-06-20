@@ -77,6 +77,7 @@ Implemented:
 - annotation API in `io.github.ukman.priluka.annotation`
 - runtime `Token`, `GrammarException`, and `ParseException`
 - `Parser.describe(...)`
+- `Parser.trace(...)`
 - `Parser.init(classes).describe(...)`
 - `Parser.initFromOuterClass(...).describe(...)`
 - compact `GrammarModel`
@@ -99,6 +100,7 @@ Implemented:
 - keyword carrier optimization for keywords covered by terminals such as `Id`
 - manual lexer performance baseline test
 - real `Parser.parse(...)` v1 through a reflective backtracking parser
+- parse trace events through `Parser.trace(...)`
 - object construction for constructor productions with single parts
 - built-in terminal conversion for `Integer`, `Double`, and `Boolean`
 - enum terminal conversion to enum constants
@@ -1409,9 +1411,19 @@ diagnostic. It should not silently fall back in the first version.
 
 ### Parse Trace And Object Construction
 
-The NFA engine must do more than answer whether the input belongs to the
+The parser engine must do more than answer whether the input belongs to the
 language. It must preserve enough information to reconstruct the derivation and
-build the target Java object graph.
+build the target Java object graph. The reflective parser can already expose a
+first event-stream form of this trace:
+
+```java
+ParseTraceResult<Point> result = Parser.trace(Point.class, "456 78");
+
+Point point = result.getValue();
+ParseTrace trace = result.getTrace();
+```
+
+The NFA engine will need the same idea internally.
 
 The compiled NFA should therefore carry semantic actions on states or
 transitions. During simulation, an accepting path produces a parse trace.
