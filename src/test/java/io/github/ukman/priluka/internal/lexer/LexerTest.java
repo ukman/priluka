@@ -128,12 +128,37 @@ class LexerTest {
         });
     }
 
+    @Test
+    void javaRegexAndBricsLexersProduceSameLexemes() {
+        LexerSpec spec = new LexerSpec(Arrays.asList(
+            keyword(If.class, "if", 0),
+            regexp(Id.class, "[A-Za-z_][A-Za-z0-9_]*", false, 0),
+            regexp(Integer.class, "[+-]?[0-9]+", false, 0),
+            regexp(Whitespace.class, "\\s+", true, 0),
+            regexp(Comma.class, ",", false, 0)
+        ));
+
+        List<Lexeme> javaRegexLexemes = Lexers.javaRegex(spec).tokenize("if ifx, 42");
+        List<Lexeme> bricsLexemes = Lexers.brics(spec).tokenize("if ifx, 42");
+
+        assertEquals(javaRegexLexemes.size(), bricsLexemes.size());
+        for (int i = 0; i < javaRegexLexemes.size(); i++) {
+            assertEquals(javaRegexLexemes.get(i).getStart(), bricsLexemes.get(i).getStart());
+            assertEquals(javaRegexLexemes.get(i).getLen(), bricsLexemes.get(i).getLen());
+            assertEquals(javaRegexLexemes.get(i).getText(), bricsLexemes.get(i).getText());
+            assertEquals(
+                javaRegexLexemes.get(i).getTerminalTypes().size(),
+                bricsLexemes.get(i).getTerminalTypes().size()
+            );
+        }
+    }
+
     private Lexer lexer(TerminalSymbol... terminals) {
         return lexer(LexerOptions.DEFAULT, terminals);
     }
 
     private Lexer lexer(LexerOptions options, TerminalSymbol... terminals) {
-        return new Lexer(new LexerSpec(Arrays.asList(terminals)), options);
+        return Lexers.defaultLexer(new LexerSpec(Arrays.asList(terminals)), options);
     }
 
     private TerminalSymbol regexp(Class<?> type, String pattern, boolean skip, int priority) {

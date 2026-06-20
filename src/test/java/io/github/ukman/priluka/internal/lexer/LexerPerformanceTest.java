@@ -20,19 +20,15 @@ class LexerPerformanceTest {
         );
         String input = generateInput(TARGET_BYTES);
 
-        Lexer strictLexer = new Lexer(
-            new LexerSpec(Arrays.asList(
+        LexerSpec strictSpec = new LexerSpec(Arrays.asList(
                 regexp(Spaces.class, "\\s+", true, 0),
                 regexp(Id.class, "[A-Za-z_][A-Za-z0-9_]*", false, 0),
                 regexp(NumberToken.class, "[0-9]+", false, 0),
                 regexp(QuotedString.class, "\"([^\"\\\\]|\\\\.)*\"", false, 0),
                 regexp(Operator.class, "[+\\-=()\\[\\]{}.,*/?]", false, 0)
-            )),
-            LexerOptions.STRICT
-        );
+            ));
 
-        Lexer multiVariantLexer = new Lexer(
-            new LexerSpec(Arrays.asList(
+        LexerSpec multiVariantSpec = new LexerSpec(Arrays.asList(
                 regexp(Spaces.class, "\\s+", true, 0),
                 regexp(Id.class, "[A-Za-z_][A-Za-z0-9_]*", false, 0),
                 keyword(If.class, "if"),
@@ -46,29 +42,37 @@ class LexerPerformanceTest {
                 regexp(NumberToken.class, "[0-9]+", false, 0),
                 regexp(QuotedString.class, "\"([^\"\\\\]|\\\\.)*\"", false, 0),
                 regexp(Operator.class, "[+\\-=()\\[\\]{}.,*/?]", false, 0)
-            )),
-            new LexerOptions(false, true)
-        );
+            ));
 
-        Result strict = measure("strict", strictLexer, input);
-        Result multiVariant = measure("multi-variant", multiVariantLexer, input);
-        Result strictScanOnly = measureScanOnly("strict scan-only", strictLexer, input);
-        Result multiVariantScanOnly = measureScanOnly("multi-variant scan-only", multiVariantLexer, input);
+        reportEngine("java-regex", Lexers.javaRegex(strictSpec, LexerOptions.STRICT),
+            Lexers.javaRegex(multiVariantSpec, new LexerOptions(false, true)), input);
+        reportEngine("brics", Lexers.brics(strictSpec, LexerOptions.STRICT),
+            Lexers.brics(multiVariantSpec, new LexerOptions(false, true)), input);
+    }
+
+    private void reportEngine(String engine, Lexer strictLexer, Lexer multiVariantLexer, String input) {
+        Result strict = measure(engine + " strict", strictLexer, input);
+        Result multiVariant = measure(engine + " multi-variant", multiVariantLexer, input);
+        Result strictScanOnly = measureScanOnly(engine + " strict scan-only", strictLexer, input);
+        Result multiVariantScanOnly = measureScanOnly(engine + " multi-variant scan-only", multiVariantLexer, input);
 
         System.out.println(strict);
         System.out.println(multiVariant);
         System.out.println(strictScanOnly);
         System.out.println(multiVariantScanOnly);
         System.out.printf(
-            "multi/strict slowdown: %.2fx%n",
+            "%s multi/strict slowdown: %.2fx%n",
+            engine,
             Double.valueOf(strict.megabytesPerSecond / multiVariant.megabytesPerSecond)
         );
         System.out.printf(
-            "strict scan-only gain: %.2fx%n",
+            "%s strict scan-only gain: %.2fx%n",
+            engine,
             Double.valueOf(strictScanOnly.megabytesPerSecond / strict.megabytesPerSecond)
         );
         System.out.printf(
-            "multi scan-only gain: %.2fx%n",
+            "%s multi scan-only gain: %.2fx%n",
+            engine,
             Double.valueOf(multiVariantScanOnly.megabytesPerSecond / multiVariant.megabytesPerSecond)
         );
     }
