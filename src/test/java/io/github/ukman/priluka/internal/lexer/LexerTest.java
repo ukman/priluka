@@ -44,6 +44,21 @@ class LexerTest {
     }
 
     @Test
+    void keepsCaseInsensitiveKeywordAndIdentifierAmbiguity() {
+        Lexer lexer = lexer(
+            keyword(If.class, "if", false, 0),
+            regexp(Id.class, "[A-Za-z_][A-Za-z0-9_]*", false, 0)
+        );
+
+        List<Lexeme> lexemes = lexer.tokenize("IF");
+
+        assertEquals(1, lexemes.size());
+        assertEquals("IF", lexemes.get(0).getText());
+        assertTrue(lexemes.get(0).hasTerminal(If.class));
+        assertTrue(lexemes.get(0).hasTerminal(Id.class));
+    }
+
+    @Test
     void identifierEatsKeywordPrefix() {
         Lexer lexer = lexer(
             keyword(If.class, "if", 0),
@@ -93,7 +108,11 @@ class LexerTest {
     }
 
     private TerminalSymbol keyword(Class<?> type, String text, int priority) {
-        return new TerminalSymbol(type, TerminalSymbol.Kind.KEYWORD, text, false, priority);
+        return keyword(type, text, true, priority);
+    }
+
+    private TerminalSymbol keyword(Class<?> type, String text, boolean caseSensitive, int priority) {
+        return new TerminalSymbol(type, TerminalSymbol.Kind.KEYWORD, text, false, priority, caseSensitive);
     }
 
     interface ThrowingRunnable extends org.junit.jupiter.api.function.Executable {

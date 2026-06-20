@@ -10,10 +10,12 @@ import java.util.regex.Pattern;
 public final class Lexer {
     private final LexerSpec spec;
     private final MasterPattern masterPattern;
+    private final KeywordCarrierIndex keywordCarrierIndex;
 
     public Lexer(LexerSpec spec) {
         this.spec = spec;
-        this.masterPattern = new MasterPatternBuilder().build(spec);
+        this.keywordCarrierIndex = KeywordCarrierIndex.build(spec.getTerminals());
+        this.masterPattern = new MasterPatternBuilder().build(new LexerSpec(keywordCarrierIndex.getMasterTerminals()));
     }
 
     public List<Lexeme> tokenize(String input) {
@@ -32,6 +34,7 @@ public final class Lexer {
             }
 
             List<TerminalSymbol> terminalTypes = matchingTerminals(text);
+            keywordCarrierIndex.addKeywordMatches(text, terminalTypes);
             boolean skipped = allSkipped(terminalTypes);
             Lexeme lexeme = new Lexeme(position, text.length(), text, terminalTypes, skipped);
             if (!skipped) {
@@ -45,6 +48,9 @@ public final class Lexer {
     private List<TerminalSymbol> matchingTerminals(String text) {
         List<TerminalSymbol> matches = new ArrayList<TerminalSymbol>();
         for (TerminalSymbol terminal : spec.getTerminals()) {
+            if (keywordCarrierIndex.isCoveredKeyword(terminal)) {
+                continue;
+            }
             if (matches(terminal, text)) {
                 matches.add(terminal);
             }
@@ -58,7 +64,11 @@ public final class Lexer {
 
     private String regexFor(TerminalSymbol terminal) {
         if (terminal.getKind() == TerminalSymbol.Kind.KEYWORD) {
-            return Pattern.quote(terminal.getPattern());
+            String quoted = Pattern.quote(terminal.getPattern());
+            if (!terminal.isCaseSensitive()) {
+                return "(?iu:" + quoted + ")";
+            }
+            return quoted;
         }
         return terminal.getPattern();
     }

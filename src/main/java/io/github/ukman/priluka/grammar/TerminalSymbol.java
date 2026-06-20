@@ -12,13 +12,19 @@ public final class TerminalSymbol {
     private final String pattern;
     private final boolean skip;
     private final int priority;
+    private final boolean caseSensitive;
 
     public TerminalSymbol(Class<?> type, Kind kind, String pattern, boolean skip, int priority) {
+        this(type, kind, pattern, skip, priority, true);
+    }
+
+    public TerminalSymbol(Class<?> type, Kind kind, String pattern, boolean skip, int priority, boolean caseSensitive) {
         this.type = type;
         this.kind = kind;
         this.pattern = pattern;
         this.skip = skip;
         this.priority = priority;
+        this.caseSensitive = caseSensitive;
     }
 
     public Class<?> getType() {
@@ -43,5 +49,9 @@ public final class TerminalSymbol {
 
     public int getPriority() {
         return priority;
+    }
+
+    public boolean isCaseSensitive() {
+        return caseSensitive;
     }
 }

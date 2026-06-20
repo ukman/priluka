@@ -158,29 +158,34 @@ public final class GrammarModelBuilder {
         TerminalSymbol.Kind kind;
         String pattern;
         int priority;
+        boolean caseSensitive;
         if (isBuiltIn(type)) {
             kind = TerminalSymbol.Kind.BUILT_IN;
             pattern = builtInPattern(type);
             priority = 0;
+            caseSensitive = true;
         } else if (type.isAnnotationPresent(Terminal.class)) {
             Terminal terminal = type.getAnnotation(Terminal.class);
             kind = TerminalSymbol.Kind.REGEXP;
             pattern = terminalPattern(terminal, type);
             priority = terminal.priority();
+            caseSensitive = true;
         } else if (type.isAnnotationPresent(Keyword.class)) {
             Keyword keyword = type.getAnnotation(Keyword.class);
             kind = TerminalSymbol.Kind.KEYWORD;
             pattern = keywordText(keyword, type);
             priority = keyword.priority();
+            caseSensitive = keyword.caseSensitive();
         } else if (type.isEnum() && type.isAnnotationPresent(Keywords.class)) {
             Keywords keywords = type.getAnnotation(Keywords.class);
             kind = TerminalSymbol.Kind.KEYWORD;
             pattern = enumKeywordText(type);
             priority = keywords.priority();
+            caseSensitive = keywords.caseSensitive();
         } else {
             throw new GrammarException("Not a terminal: " + type.getName());
         }
-        terminals.put(type, new TerminalSymbol(type, kind, pattern, type.isAnnotationPresent(Skip.class), priority));
+        terminals.put(type, new TerminalSymbol(type, kind, pattern, type.isAnnotationPresent(Skip.class), priority, caseSensitive));
     }
 
     private boolean isTerminal(Class<?> type) {

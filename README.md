@@ -92,10 +92,10 @@ Implemented:
 - keyword branch quoting in master regexps
 - lexer tokenization loop with same-span terminal recheck
 - skip-token filtering
+- keyword carrier optimization for keywords covered by terminals such as `Id`
 
 Not implemented yet:
 
-- keyword carrier optimization
 - NFA compiler
 - NFA simulation
 - parse trace

@@ -29,7 +29,11 @@ public final class MasterPatternBuilder {
 
     private String regexFor(TerminalSymbol terminal) {
         if (terminal.getKind() == TerminalSymbol.Kind.KEYWORD) {
-            return Pattern.quote(terminal.getPattern());
+            String quoted = Pattern.quote(terminal.getPattern());
+            if (!terminal.isCaseSensitive()) {
+                return "(?iu:" + quoted + ")";
+            }
+            return quoted;
         }
         return terminal.getPattern();
     }
