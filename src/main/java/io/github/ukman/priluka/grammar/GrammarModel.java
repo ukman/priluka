@@ -1,5 +1,7 @@
 package io.github.ukman.priluka.grammar;
 
+import io.github.ukman.priluka.internal.grammar.NfaCompatibilityChecker;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -49,5 +51,9 @@ public final class GrammarModel {
 
     public List<PredictionConflict> findPredictionConflicts() {
         return Collections.unmodifiableList(new PredictionConflictAnalyzer(this).findConflicts());
+    }
+
+    public NfaCompatibility checkNfaCompatibility() {
+        return new NfaCompatibilityChecker(this).check();
     }
 }

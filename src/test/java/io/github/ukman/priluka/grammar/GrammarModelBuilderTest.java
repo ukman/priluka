@@ -102,6 +102,41 @@ class GrammarModelBuilderTest {
     }
 
     @Test
+    void reportsSimpleConstructorGrammarAsNfaCompatible() {
+        GrammarModel model = Parser.describe(Point.class);
+
+        assertEquals(true, model.checkNfaCompatibility().isSupported());
+    }
+
+    @Test
+    void reportsSeparatedListGrammarAsNfaCompatible() {
+        GrammarModel model = Parser.describe(NumberArray.class);
+
+        assertEquals(true, model.checkNfaCompatibility().isSupported());
+    }
+
+    @Test
+    void reportsOptionalGrammarAsNfaCompatible() {
+        GrammarModel model = Parser.describe(SignedNumber.class);
+
+        assertEquals(true, model.checkNfaCompatibility().isSupported());
+    }
+
+    @Test
+    void reportsRecursiveGrammarAsNfaIncompatible() {
+        GrammarModel model = Parser.describe(SelfRecursive.class);
+
+        NfaCompatibility compatibility = model.checkNfaCompatibility();
+
+        assertEquals(false, compatibility.isSupported());
+        assertEquals(1, compatibility.getReasons().size());
+        assertEquals(
+            "Recursive nonterminal cycle is outside NFA v1 subset: SelfRecursive -> SelfRecursive",
+            compatibility.getReasons().get(0)
+        );
+    }
+
+    @Test
     void terminalSymbolKeepsLexerPriority() {
         GrammarModel model = Parser.describe(IdentifierExpression.class);
 
@@ -240,6 +275,11 @@ class GrammarModelBuilderTest {
 
     static class SignedNumber {
         public SignedNumber(Optional<Minus> minus, Integer number) {
+        }
+    }
+
+    static class SelfRecursive {
+        public SelfRecursive(SelfRecursive next) {
         }
     }
 

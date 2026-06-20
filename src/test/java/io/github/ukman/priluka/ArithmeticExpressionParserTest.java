@@ -53,6 +53,18 @@ class ArithmeticExpressionParserTest {
         assertEquals(1, calculate("-(-1)"));
     }
 
+    @Test
+    void reportsArithmeticGrammarAsNfaIncompatible() {
+        assertEquals(
+            false,
+            Parser
+                .initFromOuterClass(ArithmeticGrammar.class)
+                .describe(ArithmeticGrammar.Expression.class)
+                .checkNfaCompatibility()
+                .isSupported()
+        );
+    }
+
     private int calculate(String input) {
         return Parser
             .initFromOuterClass(ArithmeticGrammar.class)

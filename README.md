@@ -85,6 +85,7 @@ Implemented:
 - BNF-like diagnostics through `GrammarModel.toBnf()`
 - LL-style prediction conflict diagnostics through
   `GrammarModel.findPredictionConflicts()`
+- NFA v1 subset diagnostics through `GrammarModel.checkNfaCompatibility()`
 - reflection discovery for constructor productions
 - multiple constructors as alternatives
 - interface alternatives inside an explicit class universe
@@ -116,7 +117,6 @@ Not implemented yet:
 
 - NFA compiler
 - NFA simulation
-- parse trace
 - object construction from an NFA parse trace
 
 Manual lexer benchmark:
@@ -1413,6 +1413,18 @@ the token stream.
 
 The NFA engine should reject grammars outside its supported subset with a clear
 diagnostic. It should not silently fall back in the first version.
+
+The current grammar model already exposes the first version of this diagnostic:
+
+```java
+GrammarModel model = Parser.describe(Point.class);
+NfaCompatibility compatibility = model.checkNfaCompatibility();
+```
+
+NFA v1 accepts an acyclic nonterminal dependency graph with terminals,
+sequences, alternatives, optional parts, repetitions, and separated
+repetitions. Recursive nonterminal cycles are rejected for now, including
+ordinary expression grammars such as arithmetic expressions with parentheses.
 
 ### Parse Trace And Object Construction
 
