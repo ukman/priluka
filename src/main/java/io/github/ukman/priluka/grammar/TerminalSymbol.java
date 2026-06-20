@@ -1,5 +1,9 @@
 package io.github.ukman.priluka.grammar;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 public final class TerminalSymbol {
     public enum Kind {
         REGEXP,
@@ -13,18 +17,40 @@ public final class TerminalSymbol {
     private final boolean skip;
     private final int priority;
     private final boolean caseSensitive;
+    private final List<String> keywordTexts;
 
     public TerminalSymbol(Class<?> type, Kind kind, String pattern, boolean skip, int priority) {
         this(type, kind, pattern, skip, priority, true);
     }
 
     public TerminalSymbol(Class<?> type, Kind kind, String pattern, boolean skip, int priority, boolean caseSensitive) {
+        this(
+            type,
+            kind,
+            pattern,
+            skip,
+            priority,
+            caseSensitive,
+            kind == Kind.KEYWORD ? Collections.singletonList(pattern) : Collections.<String>emptyList()
+        );
+    }
+
+    public TerminalSymbol(
+        Class<?> type,
+        Kind kind,
+        String pattern,
+        boolean skip,
+        int priority,
+        boolean caseSensitive,
+        List<String> keywordTexts
+    ) {
         this.type = type;
         this.kind = kind;
         this.pattern = pattern;
         this.skip = skip;
         this.priority = priority;
         this.caseSensitive = caseSensitive;
+        this.keywordTexts = Collections.unmodifiableList(new ArrayList<String>(keywordTexts));
     }
 
     public Class<?> getType() {
@@ -53,5 +79,9 @@ public final class TerminalSymbol {
 
     public boolean isCaseSensitive() {
         return caseSensitive;
+    }
+
+    public List<String> getKeywordTexts() {
+        return keywordTexts;
     }
 }

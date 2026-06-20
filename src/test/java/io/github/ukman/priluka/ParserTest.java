@@ -2,6 +2,7 @@ package io.github.ukman.priluka;
 
 import io.github.ukman.priluka.annotation.Keyword;
 import io.github.ukman.priluka.annotation.Keywords;
+import io.github.ukman.priluka.annotation.Terminal;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -97,6 +98,19 @@ class ParserTest {
     }
 
     @Test
+    void findsWithAdditionalLexerCarrierTerminalThroughPublicApi() {
+        ParseFindResult<SmallPerfect> result = Parser
+            .init(SmallPerfect.class, SmallPronoun.class, SmallHaveHas.class, SmallVerb3.class, SmallWord.class)
+            .find(SmallPerfect.class, "noise words i have started later", SmallWord.class);
+
+        assertEquals(12, result.getStart());
+        assertEquals(26, result.getEnd());
+        assertEquals(SmallPronoun.I, result.getValue().pronoun);
+        assertEquals(SmallHaveHas.HAVE, result.getValue().haveHas);
+        assertEquals(SmallVerb3.STARTED, result.getValue().verb);
+    }
+
+    @Test
     void parsesInterfaceAlternativeFromInitializedUniverse() {
         Expression expression = Parser
             .init(Expression.class, NumberExpression.class)
@@ -189,6 +203,40 @@ class ParserTest {
 
     @Keyword(",")
     static class Comma {
+    }
+
+    static class SmallPerfect {
+        final SmallPronoun pronoun;
+        final SmallHaveHas haveHas;
+        final SmallVerb3 verb;
+
+        SmallPerfect(SmallPronoun pronoun, SmallHaveHas haveHas, SmallVerb3 verb) {
+            this.pronoun = pronoun;
+            this.haveHas = haveHas;
+            this.verb = verb;
+        }
+    }
+
+    @Terminal(regexp = "[A-Za-z]+")
+    static class SmallWord {
+    }
+
+    @Keywords(caseSensitive = false)
+    enum SmallPronoun {
+        I,
+        THEY
+    }
+
+    @Keywords(caseSensitive = false)
+    enum SmallHaveHas {
+        HAVE,
+        HAS
+    }
+
+    @Keywords(caseSensitive = false)
+    enum SmallVerb3 {
+        STARTED,
+        FINISHED
     }
 
     interface Expression {

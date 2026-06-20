@@ -6,6 +6,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -98,6 +99,28 @@ class LexerTest {
         assertEquals(1, lexemes.size());
         assertTrue(lexemes.get(0).hasTerminal(Id.class));
         assertEquals(1, lexemes.get(0).getTerminalTypes().size());
+    }
+
+    @ParameterizedTest
+    @MethodSource("lexerFactories")
+    void addsEnumKeywordSetTerminalThroughCarrierMap(LexerFactory factory) {
+        Lexer lexer = lexer(
+            factory,
+            keywordSet(
+                Verb3Form.class,
+                "[sS][tT][aA][rR][tT][eE][dD]|[fF][iI][nN][iI][sS][hH][eE][dD]",
+                false,
+                "started",
+                "finished"
+            ),
+            regexp(Word.class, "[A-Za-z]+", false, 0)
+        );
+
+        List<Lexeme> lexemes = lexer.tokenize("STARTED");
+
+        assertEquals(1, lexemes.size());
+        assertTrue(lexemes.get(0).hasTerminal(Word.class));
+        assertTrue(lexemes.get(0).hasTerminal(Verb3Form.class));
     }
 
     @ParameterizedTest
@@ -225,6 +248,18 @@ class LexerTest {
         return new TerminalSymbol(type, TerminalSymbol.Kind.KEYWORD, text, false, priority, caseSensitive);
     }
 
+    private TerminalSymbol keywordSet(Class<?> type, String pattern, boolean caseSensitive, String... texts) {
+        return new TerminalSymbol(
+            type,
+            TerminalSymbol.Kind.REGEXP,
+            pattern,
+            false,
+            0,
+            caseSensitive,
+            Collections.unmodifiableList(Arrays.asList(texts))
+        );
+    }
+
     interface ThrowingRunnable extends org.junit.jupiter.api.function.Executable {
     }
 
@@ -239,6 +274,12 @@ class LexerTest {
     }
 
     static class Id {
+    }
+
+    static class Word {
+    }
+
+    static class Verb3Form {
     }
 
     static class Comma {

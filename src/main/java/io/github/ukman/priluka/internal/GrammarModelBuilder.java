@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +35,10 @@ public final class GrammarModelBuilder {
 
     public GrammarModelBuilder(Class<?>[] universe) {
         this.universe = Arrays.asList(universe.clone());
+    }
+
+    public static TerminalSymbol terminalSymbol(Class<?> type) {
+        return new GrammarModelBuilder(new Class<?>[0]).toTerminalSymbol(type);
     }
 
     public GrammarModel build(Class<?> start) {
@@ -155,10 +160,15 @@ public final class GrammarModelBuilder {
             return;
         }
 
+        terminals.put(type, toTerminalSymbol(type));
+    }
+
+    private TerminalSymbol toTerminalSymbol(Class<?> type) {
         TerminalSymbol.Kind kind;
         String pattern;
         int priority;
         boolean caseSensitive;
+        List<String> keywordTexts = Collections.emptyList();
         if (isBuiltIn(type)) {
             kind = TerminalSymbol.Kind.BUILT_IN;
             pattern = builtInPattern(type);
@@ -176,16 +186,26 @@ public final class GrammarModelBuilder {
             pattern = keywordText(keyword, type);
             priority = keyword.priority();
             caseSensitive = keyword.caseSensitive();
+            keywordTexts = Collections.singletonList(pattern);
         } else if (type.isEnum() && type.isAnnotationPresent(Keywords.class)) {
             Keywords keywords = type.getAnnotation(Keywords.class);
             kind = TerminalSymbol.Kind.REGEXP;
             pattern = enumKeywordText(type);
             priority = keywords.priority();
             caseSensitive = keywords.caseSensitive();
+            keywordTexts = enumKeywordTexts(type);
         } else {
             throw new GrammarException("Not a terminal: " + type.getName());
         }
-        terminals.put(type, new TerminalSymbol(type, kind, pattern, type.isAnnotationPresent(Skip.class), priority, caseSensitive));
+        return new TerminalSymbol(
+            type,
+            kind,
+            pattern,
+            type.isAnnotationPresent(Skip.class),
+            priority,
+            caseSensitive,
+            keywordTexts
+        );
     }
 
     private boolean isTerminal(Class<?> type) {
@@ -240,17 +260,25 @@ public final class GrammarModelBuilder {
     }
 
     private String enumKeywordText(Class<?> enumType) {
-        Object[] constants = enumType.getEnumConstants();
         StringBuilder pattern = new StringBuilder();
         boolean caseSensitive = enumType.getAnnotation(Keywords.class).caseSensitive();
-        for (Object constant : constants) {
+        List<String> keywords = enumKeywordTexts(enumType);
+        for (String keyword : keywords) {
             if (pattern.length() > 0) {
                 pattern.append('|');
             }
-            String keyword = ((Enum<?>) constant).name().toLowerCase();
             pattern.append(caseSensitive ? keyword : caseInsensitiveLiteral(keyword));
         }
         return pattern.toString();
+    }
+
+    private List<String> enumKeywordTexts(Class<?> enumType) {
+        Object[] constants = enumType.getEnumConstants();
+        List<String> keywords = new ArrayList<String>(constants.length);
+        for (Object constant : constants) {
+            keywords.add(((Enum<?>) constant).name().toLowerCase());
+        }
+        return keywords;
     }
 
     private String caseInsensitiveLiteral(String text) {

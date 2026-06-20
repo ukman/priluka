@@ -1430,7 +1430,18 @@ SentencePerfect => Pronoun HaveHas Verb3Form
 The test grammar uses enum keyword terminals for pronouns, `have|has`, and
 about one hundred verbs split across `VerbInf`, `Verb2Form`, and `Verb3Form`
 interface nonterminals. `Verb3Form` is used by the search grammar; the other
-forms document the intended verb-family split.
+forms document the intended verb-family split. The lexer is built with an
+additional `WordToken` carrier terminal, so the master lexer regex can match
+plain words while concrete enum keyword terminals are added through the keyword
+lookup map.
+
+For public `find` calls, extra lexer terminals can be passed explicitly:
+
+```java
+ParseFindResult<SentencePerfect> result = Parser
+    .initFromOuterClass(PresentPerfectGrammar.class)
+    .find(SentencePerfect.class, text, WordToken.class);
+```
 
 ```bash
 mvn -Dpriluka.perf=true \
@@ -1444,7 +1455,7 @@ mvn -Dpriluka.perf=true \
 Current local result:
 
 ```text
-present-perfect-find bytes=102438 valid=5 avg=0.1921s speed=0.51 MiB/s
+present-perfect-find bytes=102438 valid=5 avg=0.1656s speed=0.59 MiB/s
 ```
 
 It also includes a small SQL `select` grammar that exercises keyword/identifier

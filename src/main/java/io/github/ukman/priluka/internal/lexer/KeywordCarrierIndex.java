@@ -31,7 +31,7 @@ final class KeywordCarrierIndex {
         Map<Class<?>, KeywordLookup> keywordsByCarrier = new LinkedHashMap<Class<?>, KeywordLookup>();
 
         for (TerminalSymbol terminal : terminals) {
-            if (terminal.getKind() == TerminalSymbol.Kind.KEYWORD && attachToCarrier(terminal, terminals, keywordsByCarrier)) {
+            if (!terminal.getKeywordTexts().isEmpty() && attachToCarrier(terminal, terminals, keywordsByCarrier)) {
                 coveredKeywords.add(terminal);
             } else {
                 masterTerminals.add(terminal);
@@ -81,10 +81,10 @@ final class KeywordCarrierIndex {
         Map<Class<?>, KeywordLookup> keywordsByCarrier
     ) {
         for (TerminalSymbol carrier : terminals) {
-            if (carrier.getKind() == TerminalSymbol.Kind.KEYWORD) {
+            if (!carrier.getKeywordTexts().isEmpty()) {
                 continue;
             }
-            if (matches(carrier, keyword.getPattern())) {
+            if (matchesAll(carrier, keyword.getKeywordTexts())) {
                 KeywordLookup keywordLookup = keywordsByCarrier.get(carrier.getType());
                 if (keywordLookup == null) {
                     keywordLookup = new KeywordLookup();
@@ -95,6 +95,15 @@ final class KeywordCarrierIndex {
             }
         }
         return false;
+    }
+
+    private static boolean matchesAll(TerminalSymbol terminal, List<String> texts) {
+        for (String text : texts) {
+            if (!matches(terminal, text)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static boolean matches(TerminalSymbol terminal, String text) {
@@ -126,15 +135,17 @@ final class KeywordCarrierIndex {
             Map<String, List<TerminalSymbol>> target = keyword.isCaseSensitive()
                 ? exactKeywords
                 : caseInsensitiveKeywords;
-            String key = keyword.isCaseSensitive()
-                ? keyword.getPattern()
-                : normalize(keyword.getPattern());
-            List<TerminalSymbol> keywords = target.get(key);
-            if (keywords == null) {
-                keywords = new ArrayList<TerminalSymbol>();
-                target.put(key, keywords);
+            for (String text : keyword.getKeywordTexts()) {
+                String key = keyword.isCaseSensitive()
+                    ? text
+                    : normalize(text);
+                List<TerminalSymbol> keywords = target.get(key);
+                if (keywords == null) {
+                    keywords = new ArrayList<TerminalSymbol>();
+                    target.put(key, keywords);
+                }
+                keywords.add(keyword);
             }
-            keywords.add(keyword);
         }
 
         List<TerminalSymbol> find(String text) {

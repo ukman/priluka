@@ -3,6 +3,7 @@ package io.github.ukman.priluka;
 import io.github.ukman.priluka.annotation.Keyword;
 import io.github.ukman.priluka.annotation.Keywords;
 import io.github.ukman.priluka.annotation.Separator;
+import io.github.ukman.priluka.annotation.Terminal;
 import io.github.ukman.priluka.grammar.GrammarModel;
 import io.github.ukman.priluka.internal.nfa.NfaParseEngine;
 import io.github.ukman.priluka.internal.nfa.NfaRecognizer;
@@ -149,7 +150,7 @@ class ParserPerformanceTest {
 
         Parser.InitializedParser parser = Parser.initFromOuterClass(PresentPerfectGrammar.class);
         GrammarModel model = parser.describe(PresentPerfectGrammar.SentencePerfect.class);
-        NfaRecognizer recognizer = new NfaRecognizer(model);
+        NfaRecognizer recognizer = new NfaRecognizer(model, PresentPerfectGrammar.WordToken.class);
         String input = generatedPresentPerfectText(
             Integer.getInteger("priluka.parser.perfect.bytes", 100 * 1024)
         );
@@ -578,20 +579,21 @@ class ParserPerformanceTest {
             }
         }
 
-        interface Word {
+        @Terminal(regexp = "[A-Za-z]+")
+        static class WordToken {
         }
 
-        interface VerbInf extends Word {
+        interface VerbInf {
         }
 
-        interface Verb2Form extends Word {
+        interface Verb2Form {
         }
 
-        interface Verb3Form extends Word {
+        interface Verb3Form {
         }
 
         @Keywords(caseSensitive = false)
-        enum Pronoun implements Word {
+        enum Pronoun {
             I,
             YOU,
             HE,
@@ -602,7 +604,7 @@ class ParserPerformanceTest {
         }
 
         @Keywords(caseSensitive = false)
-        enum HaveHas implements Word {
+        enum HaveHas {
             HAVE,
             HAS
         }

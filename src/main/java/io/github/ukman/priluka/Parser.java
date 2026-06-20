@@ -37,6 +37,10 @@ public final class Parser {
         return init(start).find(start, input);
     }
 
+    public static <S> ParseFindResult<S> find(Class<S> start, String input, Class<?>... lexerTerminalTypes) {
+        return init(start).find(start, input, lexerTerminalTypes);
+    }
+
     public static <S> S buildFromTrace(Class<S> start, ParseTrace trace) {
         return new TraceObjectBuilder().build(start, trace);
     }
@@ -64,12 +68,16 @@ public final class Parser {
         }
 
         public <S> ParseFindResult<S> find(Class<S> start, String input) {
+            return find(start, input, new Class<?>[0]);
+        }
+
+        public <S> ParseFindResult<S> find(Class<S> start, String input, Class<?>... lexerTerminalTypes) {
             GrammarModel model = describe(start);
             NfaCompatibility compatibility = model.checkNfaCompatibility();
             if (!compatibility.isSupported()) {
                 throw new GrammarException(compatibility.toString());
             }
-            NfaFindResult result = new NfaRecognizer(model).find(input);
+            NfaFindResult result = new NfaRecognizer(model, lexerTerminalTypes).find(input);
             if (result == null) {
                 return null;
             }

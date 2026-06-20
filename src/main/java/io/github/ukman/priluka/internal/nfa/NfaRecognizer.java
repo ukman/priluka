@@ -4,6 +4,7 @@ import io.github.ukman.priluka.ParseTrace;
 import io.github.ukman.priluka.ParseTraceEvent;
 import io.github.ukman.priluka.grammar.GrammarModel;
 import io.github.ukman.priluka.grammar.TerminalSymbol;
+import io.github.ukman.priluka.internal.GrammarModelBuilder;
 import io.github.ukman.priluka.internal.lexer.Lexeme;
 import io.github.ukman.priluka.internal.lexer.Lexer;
 import io.github.ukman.priluka.internal.lexer.LexerException;
@@ -27,6 +28,10 @@ public final class NfaRecognizer {
 
     public NfaRecognizer(GrammarModel model) {
         this(new NfaCompiler(model).compile(), lexerFor(model));
+    }
+
+    public NfaRecognizer(GrammarModel model, Class<?>... lexerTerminalTypes) {
+        this(new NfaCompiler(model).compile(), lexerFor(model, lexerTerminalTypes));
     }
 
     public NfaRecognizer(NfaGraph graph, Lexer lexer) {
@@ -289,14 +294,29 @@ public final class NfaRecognizer {
         return result;
     }
 
-    private static Lexer lexerFor(GrammarModel model) {
-        return Lexers.defaultLexer(new LexerSpec(terminalsWithImplicitWhitespace(model)), LexerOptions.DEFAULT);
+    private static Lexer lexerFor(GrammarModel model, Class<?>... lexerTerminalTypes) {
+        return Lexers.defaultLexer(
+            new LexerSpec(terminalsWithImplicitWhitespace(model, lexerTerminalTypes)),
+            LexerOptions.DEFAULT
+        );
     }
 
-    private static List<TerminalSymbol> terminalsWithImplicitWhitespace(GrammarModel model) {
+    private static List<TerminalSymbol> terminalsWithImplicitWhitespace(GrammarModel model, Class<?>... lexerTerminalTypes) {
         List<TerminalSymbol> result = new ArrayList<TerminalSymbol>(model.getTerminals());
+        for (int i = 0; i < lexerTerminalTypes.length; i++) {
+            addIfAbsent(result, GrammarModelBuilder.terminalSymbol(lexerTerminalTypes[i]));
+        }
         result.add(new TerminalSymbol(ImplicitWhitespace.class, TerminalSymbol.Kind.REGEXP, "\\s+", true, -1000));
         return result;
+    }
+
+    private static void addIfAbsent(List<TerminalSymbol> terminals, TerminalSymbol terminal) {
+        for (TerminalSymbol existing : terminals) {
+            if (existing.getType().equals(terminal.getType())) {
+                return;
+            }
+        }
+        terminals.add(terminal);
     }
 
     private static final class ImplicitWhitespace {
