@@ -52,12 +52,24 @@ class LexerPerformanceTest {
 
         Result strict = measure("strict", strictLexer, input);
         Result multiVariant = measure("multi-variant", multiVariantLexer, input);
+        Result strictScanOnly = measureScanOnly("strict scan-only", strictLexer, input);
+        Result multiVariantScanOnly = measureScanOnly("multi-variant scan-only", multiVariantLexer, input);
 
         System.out.println(strict);
         System.out.println(multiVariant);
+        System.out.println(strictScanOnly);
+        System.out.println(multiVariantScanOnly);
         System.out.printf(
             "multi/strict slowdown: %.2fx%n",
             Double.valueOf(strict.megabytesPerSecond / multiVariant.megabytesPerSecond)
+        );
+        System.out.printf(
+            "strict scan-only gain: %.2fx%n",
+            Double.valueOf(strictScanOnly.megabytesPerSecond / strict.megabytesPerSecond)
+        );
+        System.out.printf(
+            "multi scan-only gain: %.2fx%n",
+            Double.valueOf(multiVariantScanOnly.megabytesPerSecond / multiVariant.megabytesPerSecond)
         );
     }
 
@@ -73,6 +85,24 @@ class LexerPerformanceTest {
             List<Lexeme> lexemes = lexer.tokenize(input);
             totalNanos += System.nanoTime() - start;
             tokenCount = lexemes.size();
+        }
+
+        double averageSeconds = (totalNanos / (double) MEASURE_RUNS) / 1_000_000_000.0;
+        double megabytes = input.length() / (1024.0 * 1024.0);
+        return new Result(name, input.length(), tokenCount, averageSeconds, megabytes / averageSeconds);
+    }
+
+    private Result measureScanOnly(String name, Lexer lexer, String input) {
+        int tokenCount = 0;
+        for (int i = 0; i < WARMUP_RUNS; i++) {
+            tokenCount = lexer.countTokens(input);
+        }
+
+        long totalNanos = 0;
+        for (int i = 0; i < MEASURE_RUNS; i++) {
+            long start = System.nanoTime();
+            tokenCount = lexer.countTokens(input);
+            totalNanos += System.nanoTime() - start;
         }
 
         double averageSeconds = (totalNanos / (double) MEASURE_RUNS) / 1_000_000_000.0;

@@ -62,6 +62,34 @@ public final class Lexer {
         return lexemes;
     }
 
+    public int countTokens(String input) {
+        Matcher matcher = masterPattern.getPattern().matcher(input);
+        int position = 0;
+        int tokenCount = 0;
+        while (position < input.length()) {
+            matcher.region(position, input.length());
+            if (!matcher.lookingAt()) {
+                throw new LexerException("Unexpected input at offset " + position + ": " + input.charAt(position));
+            }
+
+            String text = matcher.group();
+            if (text.length() == 0) {
+                throw new LexerException("Lexer pattern matched empty text at offset " + position);
+            }
+
+            TerminalBranch branch = masterPattern.getMatchedBranch(matcher);
+            if (branch == null) {
+                throw new LexerException("Master pattern matched without a terminal branch at offset " + position);
+            }
+
+            if (!branch.getTerminal().isSkip()) {
+                tokenCount++;
+            }
+            position += text.length();
+        }
+        return tokenCount;
+    }
+
     private List<TerminalSymbol> matchingTerminals(String text) {
         List<TerminalSymbol> matches = new ArrayList<TerminalSymbol>();
         for (TerminalSymbol terminal : spec.getTerminals()) {

@@ -125,6 +125,10 @@ The full same-span duplicate-regexp recheck is intentionally not part of this
 baseline because it is much slower and should be reserved for grammars that
 need general overlapping terminals beyond the common `Id`/keyword case.
 
+The benchmark also reports scan-only mode, which counts tokens without creating
+`Lexeme` objects or storing token lists. This estimates the potential win from a
+streaming/cursor lexer or more careful allocation strategy.
+
 ## Design Direction
 
 - A grammar is primarily described by Java classes.
