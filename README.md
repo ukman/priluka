@@ -1246,6 +1246,23 @@ nested-sql depth=40 bytes=2524 avg=42.503 ms
 nested-sql depth=50 bytes=3174 avg=53.785 ms
 ```
 
+The same benchmark can generate a binary tree of subselect joins:
+
+```bash
+mvn -DargLine='-Xss32m' \
+    -Dpriluka.perf=true \
+    -Dtest=SqlSelectPerformanceTest \
+    -Dpriluka.sql.shape=tree \
+    -Dpriluka.sql.depths=2,3,4,5,6,7,8,9,10 \
+    -Dpriluka.perf.warmup=0 \
+    -Dpriluka.perf.runs=1 \
+    test
+```
+
+Each internal tree node generates a query shaped as
+`select * from (left) as lN left join (right) as rN on lN.company_id = rN.id`.
+The leaf query is `select * from person p left join company c on p.company_id = c.id`.
+
 Parser v1 can print coarse backtracking/debug counters:
 
 ```bash

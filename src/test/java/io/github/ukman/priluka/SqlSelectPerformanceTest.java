@@ -15,14 +15,15 @@ class SqlSelectPerformanceTest {
         );
 
         Parser.InitializedParser parser = Parser.initFromOuterClass(SqlSelectParserTest.SqlGrammar.class);
+        SqlShape shape = sqlShape();
         int[] depths = depths();
         for (int i = 0; i < depths.length; i++) {
-            String sql = nestedSelect(depths[i]);
-            System.out.println(measure(parser, depths[i], sql));
+            String sql = shape.sql(depths[i]);
+            System.out.println(measure(shape.label(), parser, depths[i], sql));
         }
     }
 
-    private Result measure(Parser.InitializedParser parser, int depth, String sql) {
+    private Result measure(String label, Parser.InitializedParser parser, int depth, String sql) {
         for (int i = 0; i < WARMUP_RUNS; i++) {
             parser.parse(SqlSelectParserTest.SqlGrammar.SelectStatement.class, sql);
         }
@@ -35,7 +36,7 @@ class SqlSelectPerformanceTest {
         }
 
         double averageMillis = (totalNanos / (double) MEASURE_RUNS) / 1_000_000.0;
-        return new Result(depth, sql.length(), averageMillis);
+        return new Result(label, depth, sql.length(), averageMillis);
     }
 
     private int[] depths() {
@@ -68,13 +69,61 @@ class SqlSelectPerformanceTest {
             + " on " + alias + ".id = " + joinedAlias + ".id";
     }
 
+    private SqlShape sqlShape() {
+        if ("tree".equals(System.getProperty("priluka.sql.shape"))) {
+            return new SqlShape() {
+                @Override
+                public String label() {
+                    return "nested-sql-tree";
+                }
+
+                @Override
+                public String sql(int depth) {
+                    return nestedTreeSelect(depth);
+                }
+            };
+        }
+
+        return new SqlShape() {
+            @Override
+            public String label() {
+                return "nested-sql";
+            }
+
+            @Override
+            public String sql(int depth) {
+                return nestedSelect(depth);
+            }
+        };
+    }
+
+    private String nestedTreeSelect(int depth) {
+        if (depth <= 1) {
+            return "select * from person p left join company c on p.company_id = c.id";
+        }
+
+        String leftAlias = "l" + depth;
+        String rightAlias = "r" + depth;
+        return "select * from (" + nestedTreeSelect(depth - 1) + ") as " + leftAlias
+            + " left join (" + nestedTreeSelect(depth - 1) + ") as " + rightAlias
+            + " on " + leftAlias + ".company_id = " + rightAlias + ".id";
+    }
+
+    private interface SqlShape {
+        String label();
+
+        String sql(int depth);
+    }
+
     private static final class Result {
+        private final String label;
         private final int depth;
         private final int bytes;
         private final double averageMillis;
         private final double mebibytesPerSecond;
 
-        private Result(int depth, int bytes, double averageMillis) {
+        private Result(String label, int depth, int bytes, double averageMillis) {
+            this.label = label;
             this.depth = depth;
             this.bytes = bytes;
             this.averageMillis = averageMillis;
@@ -84,7 +133,8 @@ class SqlSelectPerformanceTest {
         @Override
         public String toString() {
             return String.format(
-                "nested-sql depth=%d bytes=%d avg=%.3f ms speed=%.3f MiB/s",
+                "%s depth=%d bytes=%d avg=%.3f ms speed=%.3f MiB/s",
+                label,
                 Integer.valueOf(depth),
                 Integer.valueOf(bytes),
                 Double.valueOf(averageMillis),
