@@ -33,6 +33,33 @@ class ArithmeticExpressionParserTest {
         assertEquals(20, expression.calculate());
     }
 
+    @Test
+    void parsesUnaryMinus() {
+        assertEquals(-1, calculate("-1"));
+    }
+
+    @Test
+    void parsesUnaryMinusBeforeSubtraction() {
+        assertEquals(-2, calculate("-1-1"));
+    }
+
+    @Test
+    void parsesUnaryMinusBeforeParenthesizedExpression() {
+        assertEquals(-1, calculate("-(2-1)"));
+    }
+
+    @Test
+    void parsesNestedUnaryMinus() {
+        assertEquals(1, calculate("-(-1)"));
+    }
+
+    private int calculate(String input) {
+        return Parser
+            .initFromOuterClass(ArithmeticGrammar.class)
+            .parse(ArithmeticGrammar.Expression.class, input)
+            .calculate();
+    }
+
     static final class ArithmeticGrammar {
         static class Expression {
             final Term term;
@@ -160,6 +187,21 @@ class ArithmeticExpressionParserTest {
 
         interface Factor {
             int calculate();
+        }
+
+        static class NegativeFactor implements Factor {
+            final Minus minus;
+            final Factor factor;
+
+            NegativeFactor(Minus minus, Factor factor) {
+                this.minus = minus;
+                this.factor = factor;
+            }
+
+            @Override
+            public int calculate() {
+                return -factor.calculate();
+            }
         }
 
         static class NumberFactor implements Factor {
