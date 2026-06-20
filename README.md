@@ -93,6 +93,7 @@ Implemented:
 - lexer tokenization loop with same-span terminal recheck
 - skip-token filtering
 - keyword carrier optimization for keywords covered by terminals such as `Id`
+- manual lexer performance baseline test
 
 Not implemented yet:
 
@@ -101,6 +102,24 @@ Not implemented yet:
 - parse trace
 - object construction from a parse trace
 - real `Parser.parse(...)`
+
+Manual lexer benchmark:
+
+```bash
+mvn -Dpriluka.perf=true \
+    -Dtest=LexerPerformanceTest \
+    -Dpriluka.perf.bytes=5242880 \
+    -Dpriluka.perf.warmup=2 \
+    -Dpriluka.perf.runs=3 \
+    test
+```
+
+The benchmark compares:
+
+- strict lexer mode: no duplicate terminal recheck, each lexeme has one terminal
+  type
+- multi-variant lexer mode: identifier/keyword ambiguity and same-span terminal
+  collection enabled
 
 ## Design Direction
 

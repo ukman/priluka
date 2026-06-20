@@ -3,26 +3,38 @@ package io.github.ukman.priluka.internal.lexer;
 import io.github.ukman.priluka.grammar.TerminalSymbol;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class Lexer {
     private final LexerSpec spec;
+    private final LexerOptions options;
     private final MasterPattern masterPattern;
     private final KeywordCarrierIndex keywordCarrierIndex;
+    private final Map<TerminalSymbol, Pattern> terminalPatterns;
 
     public Lexer(LexerSpec spec) {
+        this(spec, LexerOptions.DEFAULT);
+    }
+
+    public Lexer(LexerSpec spec, LexerOptions options) {
         this.spec = spec;
-        this.keywordCarrierIndex = KeywordCarrierIndex.build(spec.getTerminals());
+        this.options = options;
+        this.keywordCarrierIndex = options.isKeywordCarrierOptimization()
+            ? KeywordCarrierIndex.build(spec.getTerminals())
+            : KeywordCarrierIndex.empty(spec.getTerminals());
         this.masterPattern = new MasterPatternBuilder().build(new LexerSpec(keywordCarrierIndex.getMasterTerminals()));
+        this.terminalPatterns = compileTerminalPatterns(spec.getTerminals());
     }
 
     public List<Lexeme> tokenize(String input) {
         List<Lexeme> lexemes = new ArrayList<Lexeme>();
+        Matcher matcher = masterPattern.getPattern().matcher(input);
         int position = 0;
         while (position < input.length()) {
-            Matcher matcher = masterPattern.getPattern().matcher(input);
             matcher.region(position, input.length());
             if (!matcher.lookingAt()) {
                 throw new LexerException("Unexpected input at offset " + position + ": " + input.charAt(position));
@@ -33,8 +45,12 @@ public final class Lexer {
                 throw new LexerException("Lexer pattern matched empty text at offset " + position);
             }
 
-            List<TerminalSymbol> terminalTypes = matchingTerminals(text);
-            keywordCarrierIndex.addKeywordMatches(text, terminalTypes);
+            TerminalBranch branch = masterPattern.getMatchedBranch(matcher);
+            if (branch == null) {
+                throw new LexerException("Master pattern matched without a terminal branch at offset " + position);
+            }
+
+            List<TerminalSymbol> terminalTypes = terminalTypes(branch, text);
             boolean skipped = allSkipped(terminalTypes);
             Lexeme lexeme = new Lexeme(position, text.length(), text, terminalTypes, skipped);
             if (!skipped) {
@@ -58,8 +74,22 @@ public final class Lexer {
         return matches;
     }
 
+    private List<TerminalSymbol> terminalTypes(TerminalBranch branch, String text) {
+        List<TerminalSymbol> terminalTypes;
+        if (options.isCollectAmbiguousTerminalTypes()) {
+            terminalTypes = matchingTerminals(text);
+        } else {
+            terminalTypes = new ArrayList<TerminalSymbol>();
+            terminalTypes.add(branch.getTerminal());
+        }
+        if (options.isKeywordCarrierOptimization()) {
+            keywordCarrierIndex.addKeywordMatches(text, terminalTypes);
+        }
+        return terminalTypes;
+    }
+
     private boolean matches(TerminalSymbol terminal, String text) {
-        return Pattern.compile(regexFor(terminal)).matcher(text).matches();
+        return terminalPatterns.get(terminal).matcher(text).matches();
     }
 
     private String regexFor(TerminalSymbol terminal) {
@@ -83,5 +113,13 @@ public final class Lexer {
             }
         }
         return true;
+    }
+
+    private Map<TerminalSymbol, Pattern> compileTerminalPatterns(List<TerminalSymbol> terminals) {
+        Map<TerminalSymbol, Pattern> patterns = new LinkedHashMap<TerminalSymbol, Pattern>();
+        for (TerminalSymbol terminal : terminals) {
+            patterns.put(terminal, Pattern.compile(regexFor(terminal)));
+        }
+        return patterns;
     }
 }

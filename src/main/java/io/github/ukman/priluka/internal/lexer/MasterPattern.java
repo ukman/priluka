@@ -30,4 +30,13 @@ public final class MasterPattern {
         }
         return null;
     }
+
+    public TerminalBranch getMatchedBranch(java.util.regex.Matcher matcher) {
+        for (TerminalBranch branch : branches) {
+            if (matcher.group(branch.getGroupName()) != null) {
+                return branch;
+            }
+        }
+        return null;
+    }
 }

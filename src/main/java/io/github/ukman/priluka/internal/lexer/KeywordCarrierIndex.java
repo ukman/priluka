@@ -41,6 +41,14 @@ final class KeywordCarrierIndex {
         return new KeywordCarrierIndex(masterTerminals, keywordsByCarrier, coveredKeywords);
     }
 
+    static KeywordCarrierIndex empty(List<TerminalSymbol> terminals) {
+        return new KeywordCarrierIndex(
+            terminals,
+            new LinkedHashMap<Class<?>, Map<String, List<TerminalSymbol>>>(),
+            new ArrayList<TerminalSymbol>()
+        );
+    }
+
     List<TerminalSymbol> getMasterTerminals() {
         return masterTerminals;
     }

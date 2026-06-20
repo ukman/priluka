@@ -44,6 +44,21 @@ class LexerTest {
     }
 
     @Test
+    void strictModeKeepsOnlyMasterBranchTerminal() {
+        Lexer lexer = lexer(
+            LexerOptions.STRICT,
+            keyword(If.class, "if", 0),
+            regexp(Id.class, "[A-Za-z_][A-Za-z0-9_]*", false, 0)
+        );
+
+        List<Lexeme> lexemes = lexer.tokenize("if");
+
+        assertEquals(1, lexemes.size());
+        assertTrue(lexemes.get(0).hasTerminal(Id.class));
+        assertEquals(1, lexemes.get(0).getTerminalTypes().size());
+    }
+
+    @Test
     void keepsCaseInsensitiveKeywordAndIdentifierAmbiguity() {
         Lexer lexer = lexer(
             keyword(If.class, "if", false, 0),
@@ -100,7 +115,11 @@ class LexerTest {
     }
 
     private Lexer lexer(TerminalSymbol... terminals) {
-        return new Lexer(new LexerSpec(Arrays.asList(terminals)));
+        return lexer(LexerOptions.DEFAULT, terminals);
+    }
+
+    private Lexer lexer(LexerOptions options, TerminalSymbol... terminals) {
+        return new Lexer(new LexerSpec(Arrays.asList(terminals)), options);
     }
 
     private TerminalSymbol regexp(Class<?> type, String pattern, boolean skip, int priority) {
