@@ -84,6 +84,43 @@ public final class NfaRecognizer {
         return null;
     }
 
+    public NfaFindResult find(String input) {
+        try {
+            return find(lexer.tokenize(input));
+        } catch (LexerException e) {
+            return null;
+        }
+    }
+
+    public NfaFindResult find(List<Lexeme> lexemes) {
+        List<Configuration> active = new ArrayList<Configuration>();
+        NfaFindResult best = null;
+        for (int i = 0; i < lexemes.size(); i++) {
+            Lexeme lexeme = lexemes.get(i);
+            active.addAll(epsilonClosure(singleton(new Configuration(graph.getStart(), lexeme.getStart()))));
+
+            List<Configuration> next = new ArrayList<Configuration>();
+            for (Configuration configuration : active) {
+                List<NfaTransition> transitions = outgoing.get(configuration.state);
+                for (NfaTransition transition : transitions) {
+                    if (
+                        transition.getKind() == NfaTransition.Kind.TERMINAL
+                            && lexeme.hasTerminal(transition.getSymbolType())
+                    ) {
+                        next.add(configuration.advance(transition, lexeme));
+                    }
+                }
+            }
+
+            active = epsilonClosure(next);
+            NfaFindResult accepted = firstAccepted(active);
+            if (accepted != null) {
+                best = betterFindResult(best, accepted);
+            }
+        }
+        return best;
+    }
+
     private List<Configuration> epsilonClosure(List<Configuration> seed) {
         List<Configuration> closed = new ArrayList<Configuration>(seed);
         Set<NfaState> closedStates = new LinkedHashSet<NfaState>();
@@ -112,6 +149,32 @@ public final class NfaRecognizer {
         List<Configuration> result = new ArrayList<Configuration>();
         result.add(configuration);
         return result;
+    }
+
+    private NfaFindResult firstAccepted(List<Configuration> active) {
+        for (Configuration configuration : active) {
+            if (configuration.state.equals(graph.getAccept()) && configuration.end >= configuration.start) {
+                return new NfaFindResult(
+                    configuration.start,
+                    configuration.end,
+                    new ParseTrace(traceEvents(configuration.trace))
+                );
+            }
+        }
+        return null;
+    }
+
+    private NfaFindResult betterFindResult(NfaFindResult current, NfaFindResult candidate) {
+        if (current == null) {
+            return candidate;
+        }
+        if (candidate.getStart() < current.getStart()) {
+            return candidate;
+        }
+        if (candidate.getStart() == current.getStart() && candidate.getEnd() > current.getEnd()) {
+            return candidate;
+        }
+        return current;
     }
 
     private List<ParseTraceEvent> traceEvents(TraceNode trace) {
@@ -195,18 +258,30 @@ public final class NfaRecognizer {
     private static final class Configuration {
         private final NfaState state;
         private final TraceNode trace;
+        private final int start;
+        private final int end;
 
         private Configuration(NfaState state) {
-            this(state, null);
+            this(state, null, -1, -1);
         }
 
-        private Configuration(NfaState state, TraceNode trace) {
+        private Configuration(NfaState state, int start) {
+            this(state, null, start, start);
+        }
+
+        private Configuration(NfaState state, TraceNode trace, int start, int end) {
             this.state = state;
             this.trace = trace;
+            this.start = start;
+            this.end = end;
         }
 
         private Configuration advance(NfaTransition transition, Lexeme lexeme) {
-            return new Configuration(transition.getTo(), new TraceNode(trace, transition, lexeme));
+            int nextEnd = end;
+            if (lexeme != null) {
+                nextEnd = lexeme.getStart() + lexeme.getLen();
+            }
+            return new Configuration(transition.getTo(), new TraceNode(trace, transition, lexeme), start, nextEnd);
         }
     }
 

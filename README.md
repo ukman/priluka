@@ -91,6 +91,7 @@ Implemented:
 - NFA accepting-path trace reconstruction for the supported v1 subset
 - internal `NfaParseEngine` adapter for the shared parse-engine contract
 - automatic public parser fast-path selection for NFA-compatible grammars
+- NFA find mode through `Parser.find(...)` and internal `NfaRecognizer.find(...)`
 - reflection discovery for constructor productions
 - multiple constructors as alternatives
 - interface alternatives inside an explicit class universe
@@ -1557,6 +1558,25 @@ that recognizer to the same `ParseEngine` contract used by the reflective
 parser. The public `Parser` now chooses this NFA path automatically when the
 grammar is compatible with the NFA v1 subset, and falls back to the reflective
 parser for recursive or otherwise unsupported grammars.
+
+The NFA recognizer also has a find mode. Instead of requiring the grammar to
+match the whole token stream, it starts the automaton at every token position
+and returns the leftmost-longest accepted span:
+
+```java
+ParseFindResult<SelectStatement> result = Parser
+    .initFromOuterClass(SimpleSqlGrammar.class)
+    .find(SelectStatement.class, text);
+
+int start = result.getStart();
+int end = result.getEnd();
+SelectStatement statement = result.getValue();
+```
+
+This first find mode is still token-stream based: the lexer must be able to
+tokenize the searched text using the grammar's terminals and skip terminals.
+Finding through completely arbitrary character noise will need a lexer scan
+mode that can skip unknown spans before starting token-level NFA simulation.
 
 ### Parse Trace And Object Construction
 

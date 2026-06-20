@@ -97,6 +97,25 @@ class NfaRecognizerTest {
         assertEquals(null, trace);
     }
 
+    @Test
+    void findsFirstMatchingSpanInsideTokenStream() {
+        NfaRecognizer recognizer = recognizer(PlusNumber.class);
+
+        NfaFindResult result = recognizer.find("1 + 2");
+        PlusNumber value = Parser.buildFromTrace(PlusNumber.class, result.getTrace());
+
+        assertEquals(2, result.getStart());
+        assertEquals(5, result.getEnd());
+        assertEquals(2, value.value);
+    }
+
+    @Test
+    void returnsNullWhenNoSpanMatches() {
+        NfaRecognizer recognizer = recognizer(PlusNumber.class);
+
+        assertEquals(null, recognizer.find("1 2 3"));
+    }
+
     private NfaRecognizer recognizer(Class<?> start) {
         GrammarModel model = Parser.describe(start);
         return new NfaRecognizer(model);
@@ -135,6 +154,14 @@ class NfaRecognizerTest {
         }
 
         public PlusMinus(Minus minus) {
+        }
+    }
+
+    static class PlusNumber {
+        final Integer value;
+
+        public PlusNumber(Plus plus, Integer value) {
+            this.value = value;
         }
     }
 

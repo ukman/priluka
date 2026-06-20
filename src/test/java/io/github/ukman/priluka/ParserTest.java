@@ -88,6 +88,15 @@ class ParserTest {
     }
 
     @Test
+    void findsNfaCompatibleGrammarThroughPublicApi() {
+        ParseFindResult<CommaInteger> result = Parser.find(CommaInteger.class, "1,2");
+
+        assertEquals(1, result.getStart());
+        assertEquals(3, result.getEnd());
+        assertEquals(Integer.valueOf(2), result.getValue().value);
+    }
+
+    @Test
     void parsesInterfaceAlternativeFromInitializedUniverse() {
         Expression expression = Parser
             .init(Expression.class, NumberExpression.class)
@@ -150,6 +159,14 @@ class ParserTest {
 
         FastPathList(@io.github.ukman.priluka.annotation.Separator(Comma.class) Integer[] numbers) {
             this.numbers = numbers;
+        }
+    }
+
+    static class CommaInteger {
+        final Integer value;
+
+        CommaInteger(Comma comma, Integer value) {
+            this.value = value;
         }
     }
 

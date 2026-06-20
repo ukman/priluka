@@ -5,6 +5,8 @@ import io.github.ukman.priluka.annotation.OneOrMore;
 import io.github.ukman.priluka.annotation.Separator;
 import io.github.ukman.priluka.annotation.Terminal;
 import io.github.ukman.priluka.grammar.GrammarModel;
+import io.github.ukman.priluka.internal.nfa.NfaFindResult;
+import io.github.ukman.priluka.internal.nfa.NfaRecognizer;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
@@ -62,6 +64,25 @@ class SimplifiedSqlSelectParserTest {
             "select t1.name from table1 t1 join table2 t2 on t1.id=t2.id right join table3 t3 on t2.id=t3.id outer join table4 t4 on t3.id=t4.id inner join table5 t5 on t4.id=t5.id",
             "select t1.name from table1 t1 join table2 t2 on t1.id = t2.id right join table3 t3 on t2.id = t3.id outer join table4 t4 on t3.id = t4.id inner join table5 t5 on t4.id = t5.id"
         );
+    }
+
+    @Test
+    void nfaFindLocatesSqlInsideTokenStream() {
+        String prefix = "noise words before query ";
+        String sql = "select t1.name from table1 t1 join table2 t2 on t1.id=t2.id";
+        GrammarModel model = Parser
+            .initFromOuterClass(SimpleSqlGrammar.class)
+            .describe(SimpleSqlGrammar.SelectStatement.class);
+
+        NfaFindResult result = new NfaRecognizer(model).find(prefix + sql);
+        SimpleSqlGrammar.SelectStatement statement = Parser.buildFromTrace(
+            SimpleSqlGrammar.SelectStatement.class,
+            result.getTrace()
+        );
+
+        assertEquals(prefix.length(), result.getStart());
+        assertEquals(prefix.length() + sql.length(), result.getEnd());
+        assertEquals("select t1.name from table1 t1 join table2 t2 on t1.id = t2.id", statement.sql());
     }
 
     private void assertSql(String input, String expected) {

@@ -1,8 +1,11 @@
 package io.github.ukman.priluka;
 
 import io.github.ukman.priluka.grammar.GrammarModel;
+import io.github.ukman.priluka.grammar.NfaCompatibility;
 import io.github.ukman.priluka.internal.GrammarModelBuilder;
+import io.github.ukman.priluka.internal.nfa.NfaFindResult;
 import io.github.ukman.priluka.internal.nfa.NfaParseEngine;
+import io.github.ukman.priluka.internal.nfa.NfaRecognizer;
 import io.github.ukman.priluka.internal.parser.ParseEngine;
 import io.github.ukman.priluka.internal.parser.ReflectiveParser;
 import io.github.ukman.priluka.internal.parser.TraceObjectBuilder;
@@ -30,6 +33,10 @@ public final class Parser {
         return init(start).trace(start, input);
     }
 
+    public static <S> ParseFindResult<S> find(Class<S> start, String input) {
+        return init(start).find(start, input);
+    }
+
     public static <S> S buildFromTrace(Class<S> start, ParseTrace trace) {
         return new TraceObjectBuilder().build(start, trace);
     }
@@ -54,6 +61,20 @@ public final class Parser {
             ParseEngine engine = parseEngine(model);
             ParseTrace trace = engine.parseTrace(start, input);
             return new ParseTraceResult<S>(new TraceObjectBuilder().build(start, trace), trace);
+        }
+
+        public <S> ParseFindResult<S> find(Class<S> start, String input) {
+            GrammarModel model = describe(start);
+            NfaCompatibility compatibility = model.checkNfaCompatibility();
+            if (!compatibility.isSupported()) {
+                throw new GrammarException(compatibility.toString());
+            }
+            NfaFindResult result = new NfaRecognizer(model).find(input);
+            if (result == null) {
+                return null;
+            }
+            S value = new TraceObjectBuilder().build(start, result.getTrace());
+            return new ParseFindResult<S>(value, result.getTrace(), result.getStart(), result.getEnd());
         }
 
         public <S> S buildFromTrace(Class<S> start, ParseTrace trace) {
