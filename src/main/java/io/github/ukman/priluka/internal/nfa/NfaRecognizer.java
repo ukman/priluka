@@ -25,6 +25,7 @@ public final class NfaRecognizer {
     private final NfaGraph graph;
     private final Lexer lexer;
     private final Map<NfaState, List<NfaTransition>> outgoing = new LinkedHashMap<NfaState, List<NfaTransition>>();
+    private final Map<NfaState, List<EpsilonPath>> epsilonClosures = new LinkedHashMap<NfaState, List<EpsilonPath>>();
     private final Set<Class<?>> startTerminalTypes = new LinkedHashSet<Class<?>>();
 
     public NfaRecognizer(GrammarModel model) {
@@ -43,6 +44,9 @@ public final class NfaRecognizer {
         }
         for (NfaTransition transition : graph.getTransitions()) {
             outgoing.get(transition.getFrom()).add(transition);
+        }
+        for (NfaState state : graph.getStates()) {
+            epsilonClosures.put(state, collectEpsilonPaths(state));
         }
         startTerminalTypes.addAll(collectStartTerminalTypes());
     }
@@ -216,27 +220,57 @@ public final class NfaRecognizer {
     }
 
     private List<Configuration> epsilonClosure(List<Configuration> seed, boolean captureTrace) {
-        List<Configuration> closed = new ArrayList<Configuration>(seed);
-        Set<NfaState> closedStates = new LinkedHashSet<NfaState>();
-        Deque<Configuration> queue = new ArrayDeque<Configuration>(seed);
+        List<Configuration> closed = new ArrayList<Configuration>();
         for (Configuration configuration : seed) {
-            closedStates.add(configuration.state);
+            List<EpsilonPath> paths = epsilonClosures.get(configuration.state);
+            for (EpsilonPath path : paths) {
+                closed.add(configuration.advance(path, captureTrace));
+            }
         }
+        return closed;
+    }
+
+    private List<EpsilonPath> collectEpsilonPaths(NfaState start) {
+        List<EpsilonPath> paths = new ArrayList<EpsilonPath>();
+        Set<NfaState> closedStates = new LinkedHashSet<NfaState>();
+        Deque<EpsilonPath> queue = new ArrayDeque<EpsilonPath>();
+        EpsilonPath startPath = new EpsilonPath(start, new ArrayList<NfaTransition>());
+        if (isObservableState(start)) {
+            paths.add(startPath);
+        }
+        queue.addLast(startPath);
+        closedStates.add(start);
+
         while (!queue.isEmpty()) {
-            Configuration configuration = queue.removeFirst();
-            List<NfaTransition> transitions = outgoing.get(configuration.state);
+            EpsilonPath path = queue.removeFirst();
+            List<NfaTransition> transitions = outgoing.get(path.state);
             for (NfaTransition transition : transitions) {
                 if (transition.getKind() == NfaTransition.Kind.TERMINAL) {
                     continue;
                 }
                 if (closedStates.add(transition.getTo())) {
-                    Configuration next = configuration.advance(transition, null, -1, captureTrace);
-                    closed.add(next);
+                    EpsilonPath next = path.append(transition);
+                    if (isObservableState(next.state)) {
+                        paths.add(next);
+                    }
                     queue.addLast(next);
                 }
             }
         }
-        return closed;
+        return paths;
+    }
+
+    private boolean isObservableState(NfaState state) {
+        if (state.equals(graph.getAccept())) {
+            return true;
+        }
+        List<NfaTransition> transitions = outgoing.get(state);
+        for (NfaTransition transition : transitions) {
+            if (transition.getKind() == NfaTransition.Kind.TERMINAL) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private List<Configuration> singleton(Configuration configuration) {
@@ -413,6 +447,40 @@ public final class NfaRecognizer {
                 startTokenIndex,
                 nextEndTokenIndex
             );
+        }
+
+        private Configuration advance(EpsilonPath path, boolean captureTrace) {
+            TraceNode nextTrace = trace;
+            if (captureTrace) {
+                for (NfaTransition transition : path.transitions) {
+                    nextTrace = new TraceNode(nextTrace, transition, null);
+                }
+            }
+            return new Configuration(
+                path.state,
+                nextTrace,
+                start,
+                end,
+                startTokenIndex,
+                endTokenIndex
+            );
+        }
+    }
+
+    private static final class EpsilonPath {
+        private final NfaState state;
+        private final List<NfaTransition> transitions;
+
+        private EpsilonPath(NfaState state, List<NfaTransition> transitions) {
+            this.state = state;
+            this.transitions = transitions;
+        }
+
+        private EpsilonPath append(NfaTransition transition) {
+            List<NfaTransition> next = new ArrayList<NfaTransition>(transitions.size() + 1);
+            next.addAll(transitions);
+            next.add(transition);
+            return new EpsilonPath(transition.getTo(), next);
         }
     }
 

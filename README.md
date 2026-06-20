@@ -1461,7 +1461,7 @@ present-perfect-find bytes=102438 valid=5 avg=0.1656s speed=0.59 MiB/s
 On a warmed 500 KiB run:
 
 ```text
-present-perfect-find bytes=512026 valid=5 avg=0.0946s speed=5.16 MiB/s
+present-perfect-find bytes=512026 valid=5 avg=0.0644s speed=7.58 MiB/s
 present-perfect-lexer bytes=512026 tokens=101995 avg=0.0590s speed=8.27 MiB/s tokens=1727584/s
 ```
 
