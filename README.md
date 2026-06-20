@@ -1206,6 +1206,7 @@ Manual arithmetic expression parser benchmark:
 ```bash
 mvn -Dpriluka.perf=true \
     -Dtest=ArithmeticExpressionPerformanceTest \
+    -Dpriluka.arithmetic.numbers=small \
     -Dpriluka.arithmetic.bytes=1024,5120,10240,20480 \
     -Dpriluka.perf.warmup=1 \
     -Dpriluka.perf.runs=3 \
@@ -1214,6 +1215,8 @@ mvn -Dpriluka.perf=true \
 
 The benchmark generates a long expression from repeated parenthesized blocks
 such as `((1*2-3/4)*(5-4)/2)`, joined by arithmetic operators.
+Use `-Dpriluka.arithmetic.numbers=large` to generate 5-9 digit integer
+terminals instead of one-digit terminals.
 
 It also includes a small SQL `select` grammar that exercises keyword/identifier
 ambiguity and backtracking conflicts:

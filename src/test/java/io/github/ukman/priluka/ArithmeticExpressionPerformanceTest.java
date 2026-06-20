@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 class ArithmeticExpressionPerformanceTest {
     private static final int WARMUP_RUNS = Integer.getInteger("priluka.perf.warmup", 1);
     private static final int MEASURE_RUNS = Integer.getInteger("priluka.perf.runs", 3);
+    private static final String NUMBER_MODE = System.getProperty("priluka.arithmetic.numbers", "small");
 
     @Test
     void parsesGeneratedArithmeticExpressions() {
@@ -53,7 +54,9 @@ class ArithmeticExpressionPerformanceTest {
     }
 
     private String generatedExpression(int targetBytes) {
-        String block = "((1*2-3/4)*(5-4)/2)";
+        String block = "large".equals(NUMBER_MODE)
+            ? "((12345*678901-2345678/90123)*(456789-34567)/890123456)"
+            : "((1*2-3/4)*(5-4)/2)";
         StringBuilder result = new StringBuilder(targetBytes + block.length());
         result.append(block);
         int index = 0;
