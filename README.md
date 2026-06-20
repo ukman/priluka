@@ -87,6 +87,7 @@ Implemented:
   `GrammarModel.findPredictionConflicts()`
 - NFA v1 subset diagnostics through `GrammarModel.checkNfaCompatibility()`
 - internal NFA graph model and first grammar-model-to-NFA compiler
+- internal NFA recognizer for accept/reject simulation
 - reflection discovery for constructor productions
 - multiple constructors as alternatives
 - interface alternatives inside an explicit class universe
@@ -116,7 +117,7 @@ Implemented:
 
 Not implemented yet:
 
-- NFA simulation
+- accepting-path trace reconstruction from the NFA recognizer
 - object construction from an NFA parse trace
 
 Manual lexer benchmark:
@@ -1428,8 +1429,9 @@ ordinary expression grammars such as arithmetic expressions with parentheses.
 
 The internal `NfaCompiler` can already compile this supported subset into an
 NFA graph with epsilon transitions, terminal transitions, and production
-boundary transitions. Simulation and accepting-path trace reconstruction are
-the next missing pieces.
+boundary transitions. The internal `NfaRecognizer` can run accept/reject
+simulation over the token stream. Accepting-path trace reconstruction is the
+next missing piece.
 
 ### Parse Trace And Object Construction
 
