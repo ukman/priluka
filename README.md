@@ -86,7 +86,7 @@ Implemented:
 - interface alternatives inside an explicit class universe
 - built-in terminals for `Integer`, `Double`, and `Boolean`
 - explicit `@Terminal` and `@Keyword` terminals
-- arrays, collections, `Optional<T>`, `@OneOrMore`, and `@Separator`
+- grammar model metadata for arrays, collections, `Optional<T>`, `@OneOrMore`, and `@Separator`
 - internal lexer `Lexeme` model
 - internal master-regexp builder with lexer priority ordering
 - keyword branch quoting in master regexps
@@ -99,6 +99,7 @@ Implemented:
 - built-in terminal conversion for `Integer`, `Double`, and `Boolean`
 - interface alternatives inside `Parser.init(...)` during parsing
 - implicit whitespace skipping in parser v1
+- parsing for array parameters with repetition, `@OneOrMore`, and `@Separator`
 
 Not implemented yet:
 
@@ -106,7 +107,7 @@ Not implemented yet:
 - NFA simulation
 - parse trace
 - object construction from an NFA parse trace
-- parsing for `Optional`, arrays, collections, `@OneOrMore`, and `@Separator`
+- parsing for `Optional` and collections
 
 Manual lexer benchmark:
 
@@ -1310,9 +1311,7 @@ The debug line reports:
 Not supported in parser v1 yet:
 
 - `Optional`
-- arrays and collections
-- `@OneOrMore`
-- `@Separator`
+- collections
 - left recursion or advanced ambiguity handling
 
 The next fast parser version should focus on an NFA-based engine. The full
