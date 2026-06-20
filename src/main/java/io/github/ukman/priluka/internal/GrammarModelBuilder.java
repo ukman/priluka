@@ -206,10 +206,10 @@ public final class GrammarModelBuilder {
 
     private String builtInPattern(Class<?> type) {
         if (Integer.class.equals(type) || Integer.TYPE.equals(type)) {
-            return "[+-]?[0-9]+";
+            return "[0-9]+";
         }
         if (Double.class.equals(type) || Double.TYPE.equals(type)) {
-            return "[+-]?([0-9]+\\.[0-9]*|[0-9]*\\.[0-9]+|[0-9]+)";
+            return "([0-9]+\\.[0-9]*|[0-9]*\\.[0-9]+|[0-9]+)";
         }
         if (Boolean.class.equals(type) || Boolean.TYPE.equals(type)) {
             return "true|false";

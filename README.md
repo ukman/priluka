@@ -966,10 +966,16 @@ class Point {
 Conceptually:
 
 ```text
-Integer => integer-number-regexp
-Double  => floating-point-number-regexp
+Integer => [0-9]+
+Double  => ([0-9]+\.[0-9]*|[0-9]*\.[0-9]+|[0-9]+)
 Boolean => boolean-literal-regexp
 ```
+
+Built-in numeric terminals are unsigned by default. Signs should be described
+explicitly in the grammar, for example with `Optional<Sign>` or with
+`Plus`/`Minus` operator terminals. This keeps arithmetic expressions such as
+`1+2` tokenized as `Integer`, `Plus`, `Integer` instead of `Integer`,
+signed-`Integer`.
 
 This keeps very small grammars compact while still allowing custom terminal
 classes such as `IntNumber` when the user wants a named grammar symbol,
@@ -1177,6 +1183,21 @@ Supported in parser v1:
 - object construction through reflection
 - built-in values for `Integer`, `Double`, and `Boolean`
 - implicit whitespace skipping between tokens
+- right-recursive grammars such as arithmetic expressions with precedence
+
+The current parser test suite includes an arithmetic expression grammar for:
+
+```text
++ - * / ( ) Integer
+```
+
+It parses expressions such as:
+
+```text
+1+2*3-4/2
+(1+2)*(3-4/2)
+10 + 2 * ( 8 - 3 )
+```
 
 Not supported in parser v1 yet:
 
