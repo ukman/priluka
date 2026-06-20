@@ -3,7 +3,6 @@ package io.github.ukman.priluka.internal.parser;
 import io.github.ukman.priluka.ParseException;
 import io.github.ukman.priluka.ParseTrace;
 import io.github.ukman.priluka.ParseTraceEvent;
-import io.github.ukman.priluka.ParseTraceResult;
 import io.github.ukman.priluka.grammar.GrammarModel;
 import io.github.ukman.priluka.grammar.NonterminalSymbol;
 import io.github.ukman.priluka.grammar.Production;
@@ -23,7 +22,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-public final class ReflectiveParser {
+public final class ReflectiveParser implements ParseEngine {
     private final GrammarModel model;
     private final Map<Class<?>, NonterminalSymbol> nonterminals = new LinkedHashMap<Class<?>, NonterminalSymbol>();
     private final Map<Class<?>, TerminalSymbol> terminals = new LinkedHashMap<Class<?>, TerminalSymbol>();
@@ -43,11 +42,8 @@ public final class ReflectiveParser {
         this.debug = Boolean.getBoolean("priluka.parser.debug");
     }
 
-    public <S> S parse(Class<S> start, String input) {
-        return parseWithTrace(start, input).getValue();
-    }
-
-    public <S> ParseTraceResult<S> parseWithTrace(Class<S> start, String input) {
+    @Override
+    public ParseTrace parseTrace(Class<?> start, String input) {
         if (debug) {
             debugStats.reset();
         }
@@ -58,8 +54,7 @@ public final class ReflectiveParser {
             if (debug) {
                 debugStats.print(start, input.length(), lexemes.size());
             }
-            ParseTrace trace = new ParseTrace(search.full.events);
-            return new ParseTraceResult<S>(new TraceObjectBuilder().build(start, trace), trace);
+            return new ParseTrace(search.full.events);
         }
 
         if (search.partial != null && search.partial.position < lexemes.size()) {

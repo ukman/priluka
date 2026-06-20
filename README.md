@@ -1202,15 +1202,18 @@ case where all keywords are special cases of identifiers.
 
 Priluka should separate grammar discovery from parser execution.
 
-The current parser v1 is a small reflective backtracking engine. It is designed
-to make `Parser.parse(...)` real before the fast NFA path exists.
+The current parser v1 is a small reflective backtracking engine. It recognizes
+input and emits a typed parse trace; `TraceObjectBuilder` then replays that
+trace to construct the target Java object. It is designed to make
+`Parser.parse(...)` real before the fast NFA path exists.
 
 Supported in parser v1:
 
 - constructor productions
 - interface alternatives discovered through `Parser.init(...)`
 - terminal matching through `Lexeme.hasTerminal(...)`
-- object construction through reflection
+- typed parse trace emission
+- object construction through trace replay
 - built-in values for `Integer`, `Double`, and `Boolean`
 - implicit whitespace skipping between tokens
 - right-recursive grammars such as arithmetic expressions with precedence
