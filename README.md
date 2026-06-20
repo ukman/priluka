@@ -129,7 +129,31 @@ The benchmark also reports scan-only mode, which counts tokens without creating
 `Lexeme` objects or storing token lists. This estimates the potential win from a
 streaming/cursor lexer or more careful allocation strategy.
 
-The lexer uses `Matcher.find()` plus an explicit gap check
+Experimental `experiment/brics-lexer` result after splitting lexer API and
+implementations:
+
+```text
+java-regex strict: bytes=5242919 tokens=1065406 avg=0.5948s speed=8.41 MiB/s
+java-regex multi-variant: bytes=5242919 tokens=1065406 avg=0.9498s speed=5.26 MiB/s
+java-regex strict scan-only: bytes=5242919 tokens=1065406 avg=0.3859s speed=12.96 MiB/s
+java-regex multi-variant scan-only: bytes=5242919 tokens=1065406 avg=0.3259s speed=15.34 MiB/s
+brics strict: bytes=5242919 tokens=1065406 avg=0.8274s speed=6.04 MiB/s
+brics multi-variant: bytes=5242919 tokens=1065406 avg=0.5911s speed=8.46 MiB/s
+brics strict scan-only: bytes=5242919 tokens=1065406 avg=0.1294s speed=38.65 MiB/s
+brics multi-variant scan-only: bytes=5242919 tokens=1065406 avg=0.1157s speed=43.20 MiB/s
+```
+
+In this branch `Lexer` is an engine-neutral interface. `JavaRegexLexer` keeps
+the previous master-regexp implementation, while `BricsLexer` uses
+`dk.brics.automaton.RunAutomaton` as its scanning foundation. The brics
+implementation is intentionally simple: one automaton per master terminal,
+longest match at the current position, and regular Java object allocation for
+`Lexeme` in full tokenization mode. The scan-only numbers show that
+deterministic automata can be much faster than the previous `java.util.regex`
+lexer path, while the full tokenization numbers still expose allocation and
+ambiguity-collection costs.
+
+The previous `java.util.regex` lexer path uses `Matcher.find()` plus an explicit gap check
 (`matcher.start() == currentPosition`) instead of resetting `region(...)` and
 calling `lookingAt()` at every token boundary. This keeps error detection for
 unmatched input while allowing the regex engine to scan more efficiently.
@@ -948,10 +972,29 @@ additional validation, source metadata, or domain behavior.
 
 ## Lexer
 
-The first lexer implementation should use the standard Java regular expression
-engine instead of a custom regex engine.
+The lexer has an engine-neutral API:
 
-The key optimization is to build one master regexp from all terminal regexps:
+```java
+public interface Lexer {
+    List<Lexeme> tokenize(String input);
+
+    int countTokens(String input);
+}
+```
+
+Current implementations:
+
+- `JavaRegexLexer` uses the standard Java regular expression engine and one
+  master regexp.
+- `BricsLexer` uses `dk.brics.automaton.RunAutomaton` and currently keeps one
+  automaton per master terminal.
+- `Lexers` is the factory entry point for selecting the implementation.
+
+The default implementation in the experimental branch is `BricsLexer`, but the
+Java-regex implementation remains available as a reference backend and fallback.
+
+The key Java-regex optimization is to build one master regexp from all terminal
+regexps:
 
 ```text
 (?<T0>regexp0)|(?<T1>regexp1)|(?<T2>regexp2)|...
@@ -963,9 +1006,9 @@ or, if named groups are inconvenient for generated branch names:
 (regexp0)|(regexp1)|(regexp2)|...
 ```
 
-At each token boundary, the lexer applies the single compiled `Pattern` once
-with `Matcher.lookingAt()`. The branch group that matched identifies at least
-one terminal candidate.
+At each token boundary, the Java-regex lexer applies the single compiled
+`Pattern`. The branch group that matched identifies at least one terminal
+candidate.
 
 Conceptually:
 
