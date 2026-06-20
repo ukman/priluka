@@ -1428,6 +1428,11 @@ List<ParseTraceEvent> events = trace.getEvents();
 Point rebuilt = Parser.buildFromTrace(Point.class, trace);
 ```
 
+`Parser.trace(...)` returns a value rebuilt from the emitted trace. The current
+reflective parser still keeps temporary semantic values internally while
+searching, but the public trace path now follows the same recognition-then-build
+shape expected from the future NFA engine.
+
 The NFA engine will need the same idea internally.
 
 The compiled NFA should therefore carry semantic actions on states or

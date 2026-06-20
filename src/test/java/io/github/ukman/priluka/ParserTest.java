@@ -68,6 +68,17 @@ class ParserTest {
     }
 
     @Test
+    void traceResultValueIsRebuiltFromTrace() {
+        TraceBuiltPoint.constructorCalls = 0;
+
+        ParseTraceResult<TraceBuiltPoint> result = Parser.trace(TraceBuiltPoint.class, "1 2");
+
+        assertEquals(Integer.valueOf(1), result.getValue().x);
+        assertEquals(Integer.valueOf(2), result.getValue().y);
+        assertEquals(2, TraceBuiltPoint.constructorCalls);
+    }
+
+    @Test
     void parsesInterfaceAlternativeFromInitializedUniverse() {
         Expression expression = Parser
             .init(Expression.class, NumberExpression.class)
@@ -108,6 +119,18 @@ class ParserTest {
         final Integer y;
 
         Point(Integer x, Integer y) {
+            this.x = x;
+            this.y = y;
+        }
+    }
+
+    static class TraceBuiltPoint {
+        static int constructorCalls;
+        final Integer x;
+        final Integer y;
+
+        TraceBuiltPoint(Integer x, Integer y) {
+            constructorCalls++;
             this.x = x;
             this.y = y;
         }

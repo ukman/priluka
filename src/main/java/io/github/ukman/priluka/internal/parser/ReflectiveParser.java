@@ -64,7 +64,8 @@ public final class ReflectiveParser {
             if (debug) {
                 debugStats.print(start, input.length(), lexemes.size());
             }
-            return new ParseTraceResult<S>(start.cast(search.full.value), new ParseTrace(search.full.events));
+            ParseTrace trace = new ParseTrace(search.full.events);
+            return new ParseTraceResult<S>(new TraceObjectBuilder().build(start, trace), trace);
         }
 
         if (search.partial != null && search.partial.position < lexemes.size()) {
