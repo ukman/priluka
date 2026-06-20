@@ -104,6 +104,7 @@ Implemented:
 - abstract class alternatives inside `Parser.init(...)` during parsing
 - implicit whitespace skipping in parser v1
 - parsing for array parameters with repetition, `@OneOrMore`, and `@Separator`
+- parsing for `Optional<T>` and collection parameters with repetition
 
 Not implemented yet:
 
@@ -111,7 +112,6 @@ Not implemented yet:
 - NFA simulation
 - parse trace
 - object construction from an NFA parse trace
-- parsing for `Optional` and collections
 
 Manual lexer benchmark:
 
@@ -1314,8 +1314,6 @@ The debug line reports:
 
 Not supported in parser v1 yet:
 
-- `Optional`
-- collections
 - left recursion or advanced ambiguity handling
 
 The next fast parser version should focus on an NFA-based engine. The full

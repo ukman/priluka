@@ -18,11 +18,13 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 public final class ReflectiveParser {
     private final GrammarModel model;
@@ -211,7 +213,7 @@ public final class ReflectiveParser {
             if (part.getQuantifier() != ProductionPart.Quantifier.ONE) {
                 for (int i = 0; i < states.size(); i++) {
                     ParseState state = states.get(i);
-                    List<ParseResult> partResults = parseRepeatedPart(part, lexemes, state.position);
+                    List<ParseResult> partResults = parseVariablePart(part, targetValueType(partIndex), lexemes, state.position);
                     for (ParseResult partResult : partResults) {
                         addNextState(nextStates, state, partResult);
                     }
@@ -257,22 +259,71 @@ public final class ReflectiveParser {
             values.add(partResult.value);
             nextStates.add(new ParseState(partResult.position, values));
         }
-    }
 
-    private List<ParseResult> parseRepeatedPart(ProductionPart part, List<Lexeme> lexemes, int position) {
-        if (part.getSeparatorType() != null) {
-            return parseSeparatedRepeatedPart(part, lexemes, position);
+        private Class<?> targetValueType(int index) {
+            if (production.getConstructor() == null) {
+                return partIndex < production.getParts().size()
+                    ? production.getParts().get(index).getSymbolType()
+                    : Object.class;
+            }
+            return production.getConstructor().getParameterTypes()[index];
         }
-        return parsePlainRepeatedPart(part, lexemes, position);
     }
 
-    private List<ParseResult> parsePlainRepeatedPart(ProductionPart part, List<Lexeme> lexemes, int position) {
+    private List<ParseResult> parseVariablePart(
+        ProductionPart part,
+        Class<?> targetType,
+        List<Lexeme> lexemes,
+        int position
+    ) {
+        if (part.getQuantifier() == ProductionPart.Quantifier.OPTIONAL) {
+            return parseOptionalPart(part, targetType, lexemes, position);
+        }
+        return parseRepeatedPart(part, targetType, lexemes, position);
+    }
+
+    private List<ParseResult> parseOptionalPart(
+        ProductionPart part,
+        Class<?> targetType,
+        List<Lexeme> lexemes,
+        int position
+    ) {
+        List<ParseResult> results = new ArrayList<ParseResult>();
+        results.add(new ParseResult(optionalValue(targetType, null, false), position));
+        List<ParseResult> presentResults = parseSymbol(part.getSymbolType(), lexemes, position);
+        for (ParseResult presentResult : presentResults) {
+            if (presentResult.position == position) {
+                continue;
+            }
+            results.add(new ParseResult(optionalValue(targetType, presentResult.value, true), presentResult.position));
+        }
+        return results;
+    }
+
+    private List<ParseResult> parseRepeatedPart(
+        ProductionPart part,
+        Class<?> targetType,
+        List<Lexeme> lexemes,
+        int position
+    ) {
+        if (part.getSeparatorType() != null) {
+            return parseSeparatedRepeatedPart(part, targetType, lexemes, position);
+        }
+        return parsePlainRepeatedPart(part, targetType, lexemes, position);
+    }
+
+    private List<ParseResult> parsePlainRepeatedPart(
+        ProductionPart part,
+        Class<?> targetType,
+        List<Lexeme> lexemes,
+        int position
+    ) {
         List<RepeatedState> active = new ArrayList<RepeatedState>();
         active.add(new RepeatedState(position, new ArrayList<Object>()));
 
         List<ParseResult> results = new ArrayList<ParseResult>();
         if (part.getQuantifier() == ProductionPart.Quantifier.ZERO_OR_MORE) {
-            results.add(new ParseResult(toArray(part.getSymbolType(), new ArrayList<Object>()), position));
+            results.add(new ParseResult(repeatedValue(part.getSymbolType(), targetType, new ArrayList<Object>()), position));
         }
 
         while (!active.isEmpty()) {
@@ -285,7 +336,7 @@ public final class ReflectiveParser {
                     }
                     List<Object> items = new ArrayList<Object>(state.items);
                     items.add(itemResult.value);
-                    results.add(new ParseResult(toArray(part.getSymbolType(), items), itemResult.position));
+                    results.add(new ParseResult(repeatedValue(part.getSymbolType(), targetType, items), itemResult.position));
                     next.add(new RepeatedState(itemResult.position, items));
                 }
             }
@@ -295,10 +346,15 @@ public final class ReflectiveParser {
         return results;
     }
 
-    private List<ParseResult> parseSeparatedRepeatedPart(ProductionPart part, List<Lexeme> lexemes, int position) {
+    private List<ParseResult> parseSeparatedRepeatedPart(
+        ProductionPart part,
+        Class<?> targetType,
+        List<Lexeme> lexemes,
+        int position
+    ) {
         List<ParseResult> results = new ArrayList<ParseResult>();
         if (part.getQuantifier() == ProductionPart.Quantifier.ZERO_OR_MORE) {
-            results.add(new ParseResult(toArray(part.getSymbolType(), new ArrayList<Object>()), position));
+            results.add(new ParseResult(repeatedValue(part.getSymbolType(), targetType, new ArrayList<Object>()), position));
         }
 
         List<RepeatedState> active = new ArrayList<RepeatedState>();
@@ -309,7 +365,7 @@ public final class ReflectiveParser {
             }
             List<Object> items = new ArrayList<Object>();
             items.add(firstItem.value);
-            results.add(new ParseResult(toArray(part.getSymbolType(), items), firstItem.position));
+            results.add(new ParseResult(repeatedValue(part.getSymbolType(), targetType, items), firstItem.position));
             active.add(new RepeatedState(firstItem.position, items));
         }
 
@@ -323,7 +379,10 @@ public final class ReflectiveParser {
                     }
                     List<ParseResult> itemResults = parseSymbol(part.getSymbolType(), lexemes, separator.position);
                     if (itemResults.isEmpty() && part.isTrailingSeparator()) {
-                        results.add(new ParseResult(toArray(part.getSymbolType(), state.items), separator.position));
+                        results.add(new ParseResult(
+                            repeatedValue(part.getSymbolType(), targetType, state.items),
+                            separator.position
+                        ));
                     }
                     for (ParseResult itemResult : itemResults) {
                         if (itemResult.position == separator.position) {
@@ -331,7 +390,10 @@ public final class ReflectiveParser {
                         }
                         List<Object> items = new ArrayList<Object>(state.items);
                         items.add(itemResult.value);
-                        results.add(new ParseResult(toArray(part.getSymbolType(), items), itemResult.position));
+                        results.add(new ParseResult(
+                            repeatedValue(part.getSymbolType(), targetType, items),
+                            itemResult.position
+                        ));
                         next.add(new RepeatedState(itemResult.position, items));
                     }
                 }
@@ -349,12 +411,53 @@ public final class ReflectiveParser {
         return parseNonterminal(type, lexemes, position);
     }
 
+    private Object optionalValue(Class<?> targetType, Object value, boolean present) {
+        if (Optional.class.equals(targetType)) {
+            return present ? Optional.of(value) : Optional.empty();
+        }
+        return present ? value : null;
+    }
+
+    private Object repeatedValue(Class<?> componentType, Class<?> targetType, List<Object> values) {
+        if (targetType.isArray()) {
+            return toArray(componentType, values);
+        }
+        if (Collection.class.isAssignableFrom(targetType)) {
+            return toCollection(targetType, values);
+        }
+        return toArray(componentType, values);
+    }
+
     private Object toArray(Class<?> componentType, List<Object> values) {
         Object array = Array.newInstance(componentType, values.size());
         for (int i = 0; i < values.size(); i++) {
             Array.set(array, i, values.get(i));
         }
         return array;
+    }
+
+    private Object toCollection(Class<?> targetType, List<Object> values) {
+        Collection<Object> collection;
+        if (targetType.isInterface()) {
+            collection = new ArrayList<Object>();
+        } else {
+            collection = instantiateCollection(targetType);
+        }
+        collection.addAll(values);
+        return collection;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Collection<Object> instantiateCollection(Class<?> targetType) {
+        Constructor<?> constructor = findConstructor(targetType);
+        if (constructor == null) {
+            throw new ParseException("Collection parameter has no empty constructor: " + targetType.getName());
+        }
+        Object value = instantiate(constructor, new Object[0]);
+        if (!(value instanceof Collection)) {
+            throw new ParseException("Collection constructor did not produce a Collection: " + targetType.getName());
+        }
+        return (Collection<Object>) value;
     }
 
     private int emitProductionResults(Production production, List<ParseState> states, ResultSink sink) {

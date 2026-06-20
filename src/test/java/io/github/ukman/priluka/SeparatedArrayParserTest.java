@@ -5,7 +5,12 @@ import io.github.ukman.priluka.annotation.OneOrMore;
 import io.github.ukman.priluka.annotation.Separator;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
+
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class SeparatedArrayParserTest {
@@ -60,6 +65,44 @@ class SeparatedArrayParserTest {
         assertArrayEquals(new Integer[] {7, 8, 9, 10}, numbers.values);
     }
 
+    @Test
+    void parsesCommaSeparatedIntegerList() {
+        ListNumberCollection numbers = Parser
+            .init(ListNumberCollection.class, Comma.class)
+            .parse(ListNumberCollection.class, "3,4,5");
+
+        assertEquals(Arrays.asList(3, 4, 5), numbers.values);
+    }
+
+    @Test
+    void parsesEmptyIntegerListByDefault() {
+        ListNumberCollection numbers = Parser
+            .init(ListNumberCollection.class, Comma.class)
+            .parse(ListNumberCollection.class, "");
+
+        assertEquals(Arrays.asList(), numbers.values);
+    }
+
+    @Test
+    void parsesOptionalPresentValue() {
+        SignedNumber number = Parser
+            .init(SignedNumber.class, Minus.class)
+            .parse(SignedNumber.class, "- 5");
+
+        assertEquals(Integer.valueOf(5), number.value);
+        assertEquals(true, number.minus.isPresent());
+    }
+
+    @Test
+    void parsesOptionalAbsentValue() {
+        SignedNumber number = Parser
+            .init(SignedNumber.class, Minus.class)
+            .parse(SignedNumber.class, "5");
+
+        assertEquals(Integer.valueOf(5), number.value);
+        assertEquals(false, number.minus.isPresent());
+    }
+
     static class ListNumbers {
         final Integer[] values;
 
@@ -84,8 +127,30 @@ class SeparatedArrayParserTest {
         }
     }
 
+    static class ListNumberCollection {
+        final List<Integer> values;
+
+        ListNumberCollection(@Separator(Comma.class) List<Integer> values) {
+            this.values = values;
+        }
+    }
+
+    static class SignedNumber {
+        final Optional<Minus> minus;
+        final Integer value;
+
+        SignedNumber(Optional<Minus> minus, Integer value) {
+            this.minus = minus;
+            this.value = value;
+        }
+    }
+
     @Keyword(",")
     static class Comma {
+    }
+
+    @Keyword("-")
+    static class Minus {
     }
 
     interface ThrowingRunnable extends org.junit.jupiter.api.function.Executable {

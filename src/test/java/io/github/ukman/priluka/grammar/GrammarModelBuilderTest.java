@@ -8,6 +8,9 @@ import io.github.ukman.priluka.annotation.Separator;
 import io.github.ukman.priluka.annotation.Terminal;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+import java.util.Optional;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class GrammarModelBuilderTest {
@@ -81,6 +84,20 @@ class GrammarModelBuilderTest {
         GrammarModel model = Parser.describe(NonEmptyNumberArray.class);
 
         assertEquals("NonEmptyNumberArray => (Integer (Comma Integer)* Comma?)", model.toBnf());
+    }
+
+    @Test
+    void describesSeparatedCollectionRepetition() {
+        GrammarModel model = Parser.describe(NumberList.class);
+
+        assertEquals("NumberList => (empty | Integer (Comma Integer)*)", model.toBnf());
+    }
+
+    @Test
+    void describesOptionalParameter() {
+        GrammarModel model = Parser.describe(SignedNumber.class);
+
+        assertEquals("SignedNumber => Minus? Integer", model.toBnf());
     }
 
     @Test
@@ -171,6 +188,20 @@ class GrammarModelBuilderTest {
             @OneOrMore @Separator(value = Comma.class, trailing = true) Integer[] numbers
         ) {
         }
+    }
+
+    static class NumberList {
+        public NumberList(@Separator(Comma.class) List<Integer> numbers) {
+        }
+    }
+
+    static class SignedNumber {
+        public SignedNumber(Optional<Minus> minus, Integer number) {
+        }
+    }
+
+    @Keyword("-")
+    static class Minus {
     }
 
     static class IdentifierExpression {
