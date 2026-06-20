@@ -1,6 +1,7 @@
 package io.github.ukman.priluka;
 
 import io.github.ukman.priluka.annotation.Keyword;
+import io.github.ukman.priluka.annotation.Keywords;
 import io.github.ukman.priluka.annotation.Separator;
 import io.github.ukman.priluka.grammar.GrammarModel;
 import io.github.ukman.priluka.internal.nfa.NfaParseEngine;
@@ -137,6 +138,39 @@ class ParserPerformanceTest {
 
         double averageSeconds = (totalNanos / (double) MEASURE_RUNS) / 1_000_000_000.0;
         System.out.println(new FindResult("sql-find", input.length(), found, averageSeconds));
+    }
+
+    @Test
+    void findsPresentPerfectPhrasesInLargeEnglishText() {
+        Assumptions.assumeTrue(
+            Boolean.getBoolean("priluka.perf"),
+            "Manual parser performance dump. Run with -Dpriluka.perf=true -Dtest=ParserPerformanceTest."
+        );
+
+        Parser.InitializedParser parser = Parser.initFromOuterClass(PresentPerfectGrammar.class);
+        GrammarModel model = parser.describe(PresentPerfectGrammar.SentencePerfect.class);
+        NfaRecognizer recognizer = new NfaRecognizer(model);
+        String input = generatedPresentPerfectText(
+            Integer.getInteger("priluka.parser.perfect.bytes", 100 * 1024)
+        );
+
+        for (int i = 0; i < WARMUP_RUNS; i++) {
+            assertFoundCount("present perfect phrase", recognizer, input, 5);
+        }
+
+        long totalNanos = 0;
+        int found = 0;
+        for (int i = 0; i < MEASURE_RUNS; i++) {
+            long start = System.nanoTime();
+            found = recognizer.findAll(input).size();
+            totalNanos += System.nanoTime() - start;
+        }
+        if (found != 5) {
+            throw new AssertionError("Expected 5 present perfect phrases, found " + found);
+        }
+
+        double averageSeconds = (totalNanos / (double) MEASURE_RUNS) / 1_000_000_000.0;
+        System.out.println(new FindResult("present-perfect-find", input.length(), found, averageSeconds));
     }
 
     private Result measurePublic(Parser.InitializedParser parser, String label, String input) {
@@ -364,10 +398,46 @@ class ParserPerformanceTest {
     }
 
     private void assertFoundSqlCount(NfaRecognizer recognizer, String input, int expected) {
+        assertFoundCount("valid SQL queries", recognizer, input, expected);
+    }
+
+    private void assertFoundCount(String label, NfaRecognizer recognizer, String input, int expected) {
         int found = recognizer.findAll(input).size();
         if (found != expected) {
-            throw new AssertionError("Expected " + expected + " valid SQL queries, found " + found);
+            throw new AssertionError("Expected " + expected + " " + label + ", found " + found);
         }
+    }
+
+    private String generatedPresentPerfectText(int targetBytes) {
+        String[] valid = new String[] {
+            " i have started ",
+            " he has done ",
+            " they have finished ",
+            " we have eaten ",
+            " she has written "
+        };
+        String[] safeChunks = new String[] {
+            " started they finished have done she gone has eaten we ",
+            " written it spoken have driven you seen has taken i ",
+            " made they known has found we kept have held she ",
+            " built it left have won you lost has met he ",
+            " read they paid have said we thought has brought i "
+        };
+
+        StringBuilder result = new StringBuilder(targetBytes + 256);
+        int validIndex = 0;
+        int chunk = 0;
+        while (result.length() < targetBytes) {
+            result.append(safeChunks[chunk % safeChunks.length]);
+            if (validIndex < valid.length && chunk % 17 == 8) {
+                result.append(valid[validIndex++]);
+            }
+            chunk++;
+        }
+        while (validIndex < valid.length) {
+            result.append(valid[validIndex++]);
+        }
+        return result.toString();
     }
 
     private String joinSpec(int index) {
@@ -493,5 +563,369 @@ class ParserPerformanceTest {
 
     @Keyword(",")
     static class Comma {
+    }
+
+    static final class PresentPerfectGrammar {
+        static class SentencePerfect {
+            final Pronoun pronoun;
+            final HaveHas haveHas;
+            final Verb3Form verb;
+
+            SentencePerfect(Pronoun pronoun, HaveHas haveHas, Verb3Form verb) {
+                this.pronoun = pronoun;
+                this.haveHas = haveHas;
+                this.verb = verb;
+            }
+        }
+
+        interface Word {
+        }
+
+        interface VerbInf extends Word {
+        }
+
+        interface Verb2Form extends Word {
+        }
+
+        interface Verb3Form extends Word {
+        }
+
+        @Keywords(caseSensitive = false)
+        enum Pronoun implements Word {
+            I,
+            YOU,
+            HE,
+            SHE,
+            IT,
+            WE,
+            THEY
+        }
+
+        @Keywords(caseSensitive = false)
+        enum HaveHas implements Word {
+            HAVE,
+            HAS
+        }
+
+        @Keywords(caseSensitive = false)
+        enum InfinitiveVerb implements VerbInf {
+            ACCEPT,
+            ADD,
+            ALLOW,
+            ANSWER,
+            ARRIVE,
+            ASK,
+            BAKE,
+            BELIEVE,
+            CALL,
+            CARRY,
+            CHANGE,
+            CLEAN,
+            CLOSE,
+            COOK,
+            CREATE,
+            DANCE,
+            DECIDE,
+            DELIVER,
+            DISCUSS,
+            ENJOY,
+            FINISH,
+            FOLLOW,
+            HELP,
+            HOPE,
+            INVITE,
+            JOIN,
+            LEARN,
+            LIKE,
+            LISTEN,
+            LIVE,
+            LOOK,
+            MOVE,
+            NEED,
+            OPEN,
+            PLAY,
+            PREFER,
+            PREPARE,
+            RAIN,
+            REMEMBER,
+            START,
+            STAY,
+            STOP,
+            STUDY,
+            TALK,
+            TRAVEL,
+            TRY,
+            USE,
+            VISIT,
+            WAIT,
+            WALK,
+            WANT,
+            WATCH,
+            WORK,
+            WRITE,
+            DO,
+            GO,
+            EAT,
+            SEE,
+            TAKE,
+            MAKE,
+            KNOW,
+            FIND,
+            KEEP,
+            HOLD,
+            BUILD,
+            LEAVE,
+            WIN,
+            LOSE,
+            MEET,
+            READ,
+            PAY,
+            SAY,
+            THINK,
+            BRING,
+            BUY,
+            CATCH,
+            CHOOSE,
+            COME,
+            DRINK,
+            DRIVE,
+            FALL,
+            FEEL,
+            FLY,
+            FORGET,
+            GET,
+            GIVE,
+            GROW,
+            HEAR,
+            HIDE,
+            RIDE,
+            RING,
+            RUN,
+            SEND,
+            SING,
+            SIT,
+            SLEEP,
+            SPEAK,
+            SPEND,
+            STAND,
+            SWIM,
+            TEACH,
+            TELL,
+            UNDERSTAND
+        }
+
+        @Keywords(caseSensitive = false)
+        enum PastVerb implements Verb2Form {
+            ACCEPTED,
+            ADDED,
+            ALLOWED,
+            ANSWERED,
+            ARRIVED,
+            ASKED,
+            BAKED,
+            BELIEVED,
+            CALLED,
+            CARRIED,
+            CHANGED,
+            CLEANED,
+            CLOSED,
+            COOKED,
+            CREATED,
+            DANCED,
+            DECIDED,
+            DELIVERED,
+            DISCUSSED,
+            ENJOYED,
+            FINISHED,
+            FOLLOWED,
+            HELPED,
+            HOPED,
+            INVITED,
+            JOINED,
+            LEARNED,
+            LIKED,
+            LISTENED,
+            LIVED,
+            LOOKED,
+            MOVED,
+            NEEDED,
+            OPENED,
+            PLAYED,
+            PREFERRED,
+            PREPARED,
+            RAINED,
+            REMEMBERED,
+            STARTED,
+            STAYED,
+            STOPPED,
+            STUDIED,
+            TALKED,
+            TRAVELED,
+            TRIED,
+            USED,
+            VISITED,
+            WAITED,
+            WALKED,
+            WANTED,
+            WATCHED,
+            WORKED,
+            WROTE,
+            DID,
+            WENT,
+            ATE,
+            SAW,
+            TOOK,
+            MADE,
+            KNEW,
+            FOUND,
+            KEPT,
+            HELD,
+            BUILT,
+            LEFT,
+            WON,
+            LOST,
+            MET,
+            READ,
+            PAID,
+            SAID,
+            THOUGHT,
+            BROUGHT,
+            BOUGHT,
+            CAUGHT,
+            CHOSE,
+            CAME,
+            DRANK,
+            DROVE,
+            FELL,
+            FELT,
+            FLEW,
+            FORGOT,
+            GOT,
+            GAVE,
+            GREW,
+            HEARD,
+            HID,
+            RODE,
+            RANG,
+            RAN,
+            SENT,
+            SANG,
+            SAT,
+            SLEPT,
+            SPOKE,
+            SPENT,
+            STOOD,
+            SWAM,
+            TAUGHT,
+            TOLD,
+            UNDERSTOOD
+        }
+
+        @Keywords(caseSensitive = false)
+        enum ParticipleVerb implements Verb3Form {
+            ACCEPTED,
+            ADDED,
+            ALLOWED,
+            ANSWERED,
+            ARRIVED,
+            ASKED,
+            BAKED,
+            BELIEVED,
+            CALLED,
+            CARRIED,
+            CHANGED,
+            CLEANED,
+            CLOSED,
+            COOKED,
+            CREATED,
+            DANCED,
+            DECIDED,
+            DELIVERED,
+            DISCUSSED,
+            ENJOYED,
+            FINISHED,
+            FOLLOWED,
+            HELPED,
+            HOPED,
+            INVITED,
+            JOINED,
+            LEARNED,
+            LIKED,
+            LISTENED,
+            LIVED,
+            LOOKED,
+            MOVED,
+            NEEDED,
+            OPENED,
+            PLAYED,
+            PREFERRED,
+            PREPARED,
+            RAINED,
+            REMEMBERED,
+            STARTED,
+            STAYED,
+            STOPPED,
+            STUDIED,
+            TALKED,
+            TRAVELED,
+            TRIED,
+            USED,
+            VISITED,
+            WAITED,
+            WALKED,
+            WANTED,
+            WATCHED,
+            WORKED,
+            WRITTEN,
+            DONE,
+            GONE,
+            EATEN,
+            SEEN,
+            TAKEN,
+            MADE,
+            KNOWN,
+            FOUND,
+            KEPT,
+            HELD,
+            BUILT,
+            LEFT,
+            WON,
+            LOST,
+            MET,
+            READ,
+            PAID,
+            SAID,
+            THOUGHT,
+            BROUGHT,
+            BOUGHT,
+            CAUGHT,
+            CHOSEN,
+            COME,
+            DRUNK,
+            DRIVEN,
+            FALLEN,
+            FELT,
+            FLOWN,
+            FORGOTTEN,
+            GOT,
+            GIVEN,
+            GROWN,
+            HEARD,
+            HIDDEN,
+            RIDDEN,
+            RUNG,
+            RUN,
+            SENT,
+            SUNG,
+            SAT,
+            SLEPT,
+            SPOKEN,
+            SPENT,
+            STOOD,
+            SWUM,
+            TAUGHT,
+            TOLD,
+            UNDERSTOOD
+        }
     }
 }

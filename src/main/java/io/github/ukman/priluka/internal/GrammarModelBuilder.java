@@ -242,16 +242,30 @@ public final class GrammarModelBuilder {
     private String enumKeywordText(Class<?> enumType) {
         Object[] constants = enumType.getEnumConstants();
         StringBuilder pattern = new StringBuilder();
+        boolean caseSensitive = enumType.getAnnotation(Keywords.class).caseSensitive();
         for (Object constant : constants) {
             if (pattern.length() > 0) {
                 pattern.append('|');
             }
-            pattern.append(((Enum<?>) constant).name().toLowerCase());
-        }
-        if (!enumType.getAnnotation(Keywords.class).caseSensitive()) {
-            return "(?iu:" + pattern + ")";
+            String keyword = ((Enum<?>) constant).name().toLowerCase();
+            pattern.append(caseSensitive ? keyword : caseInsensitiveLiteral(keyword));
         }
         return pattern.toString();
+    }
+
+    private String caseInsensitiveLiteral(String text) {
+        StringBuilder result = new StringBuilder(text.length() * 4);
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            char lower = Character.toLowerCase(c);
+            char upper = Character.toUpperCase(c);
+            if (lower != upper) {
+                result.append('[').append(lower).append(upper).append(']');
+            } else {
+                result.append(c);
+            }
+        }
+        return result.toString();
     }
 
     private Class<?> collectionElementType(Parameter parameter) {

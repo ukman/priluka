@@ -1421,6 +1421,32 @@ Current local result:
 sql-find bytes=102411 valid=3 avg=0.0486s speed=2.01 MiB/s
 ```
 
+There is also a phrase-search dump for a present-perfect-like English pattern:
+
+```text
+SentencePerfect => Pronoun HaveHas Verb3Form
+```
+
+The test grammar uses enum keyword terminals for pronouns, `have|has`, and
+about one hundred verbs split across `VerbInf`, `Verb2Form`, and `Verb3Form`
+interface nonterminals. `Verb3Form` is used by the search grammar; the other
+forms document the intended verb-family split.
+
+```bash
+mvn -Dpriluka.perf=true \
+    -Dtest=ParserPerformanceTest#findsPresentPerfectPhrasesInLargeEnglishText \
+    -Dpriluka.parser.perfect.bytes=102400 \
+    -Dpriluka.perf.warmup=2 \
+    -Dpriluka.perf.runs=5 \
+    test
+```
+
+Current local result:
+
+```text
+present-perfect-find bytes=102438 valid=5 avg=0.1921s speed=0.51 MiB/s
+```
+
 It also includes a small SQL `select` grammar that exercises keyword/identifier
 ambiguity and backtracking conflicts:
 

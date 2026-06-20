@@ -133,6 +133,14 @@ class ParserTest {
     }
 
     @Test
+    void parsesCaseInsensitiveEnumKeywordTerminal() {
+        CaseInsensitiveKeywordExpression expression = Parser
+            .parse(CaseInsensitiveKeywordExpression.class, "StArTeD");
+
+        assertEquals(CaseInsensitiveKeyword.STARTED, expression.keyword);
+    }
+
+    @Test
     void parsesDeepRightRecursiveGrammarWithoutJvmStackOverflow() {
         DeepGrammar.Start start = Parser
             .initFromOuterClass(DeepGrammar.class)
@@ -252,6 +260,20 @@ class ParserTest {
     enum BooleanLiteral {
         FALSE,
         TRUE
+    }
+
+    static class CaseInsensitiveKeywordExpression {
+        final CaseInsensitiveKeyword keyword;
+
+        CaseInsensitiveKeywordExpression(CaseInsensitiveKeyword keyword) {
+            this.keyword = keyword;
+        }
+    }
+
+    @Keywords(caseSensitive = false)
+    enum CaseInsensitiveKeyword {
+        STARTED,
+        FINISHED
     }
 
     static final class DeepGrammar {
