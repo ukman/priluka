@@ -86,6 +86,7 @@ Implemented:
 - LL-style prediction conflict diagnostics through
   `GrammarModel.findPredictionConflicts()`
 - NFA v1 subset diagnostics through `GrammarModel.checkNfaCompatibility()`
+- internal NFA graph model and first grammar-model-to-NFA compiler
 - reflection discovery for constructor productions
 - multiple constructors as alternatives
 - interface alternatives inside an explicit class universe
@@ -115,7 +116,6 @@ Implemented:
 
 Not implemented yet:
 
-- NFA compiler
 - NFA simulation
 - object construction from an NFA parse trace
 
@@ -1425,6 +1425,11 @@ NFA v1 accepts an acyclic nonterminal dependency graph with terminals,
 sequences, alternatives, optional parts, repetitions, and separated
 repetitions. Recursive nonterminal cycles are rejected for now, including
 ordinary expression grammars such as arithmetic expressions with parentheses.
+
+The internal `NfaCompiler` can already compile this supported subset into an
+NFA graph with epsilon transitions, terminal transitions, and production
+boundary transitions. Simulation and accepting-path trace reconstruction are
+the next missing pieces.
 
 ### Parse Trace And Object Construction
 
