@@ -27,6 +27,7 @@ public final class ReflectiveParser {
     private final GrammarModel model;
     private final Map<Class<?>, NonterminalSymbol> nonterminals = new LinkedHashMap<Class<?>, NonterminalSymbol>();
     private final Map<Class<?>, TerminalSymbol> terminals = new LinkedHashMap<Class<?>, TerminalSymbol>();
+    private final GrammarPredictor predictor;
     private final boolean debug;
     private final ParseDebugStats debugStats = new ParseDebugStats();
 
@@ -38,6 +39,7 @@ public final class ReflectiveParser {
         for (TerminalSymbol terminal : model.getTerminals()) {
             terminals.put(terminal.getType(), terminal);
         }
+        this.predictor = new GrammarPredictor(model);
         this.debug = Boolean.getBoolean("priluka.parser.debug");
     }
 
@@ -149,7 +151,12 @@ public final class ReflectiveParser {
                 return;
             }
 
-            List<Production> productions = nonterminal.getProductions();
+            List<Production> productions = predictor.predict(nonterminal, lexemes, position);
+            if (debug) {
+                debugStats.predictionAttempts++;
+                debugStats.predictionCandidates += productions.size();
+                debugStats.predictionRejected += nonterminal.getProductions().size() - productions.size();
+            }
             for (int i = productions.size() - 1; i >= 0; i--) {
                 List<ParseState> states = new ArrayList<ParseState>();
                 states.add(new ParseState(position, new ArrayList<Object>()));
@@ -481,6 +488,9 @@ public final class ReflectiveParser {
         private long terminalMatches;
         private long terminalMisses;
         private long parseResultsProduced;
+        private long predictionAttempts;
+        private long predictionCandidates;
+        private long predictionRejected;
         private int topLevelResults;
         private int fullResults;
         private int rejectedPartialResults;
@@ -495,6 +505,9 @@ public final class ReflectiveParser {
             terminalMatches = 0;
             terminalMisses = 0;
             parseResultsProduced = 0;
+            predictionAttempts = 0;
+            predictionCandidates = 0;
+            predictionRejected = 0;
             topLevelResults = 0;
             fullResults = 0;
             rejectedPartialResults = 0;
@@ -516,6 +529,9 @@ public final class ReflectiveParser {
                     + " terminalMisses=" + terminalMisses
                     + " terminalMissRate=" + percent(terminalMisses, terminalAttempts)
                     + " parseResultsProduced=" + parseResultsProduced
+                    + " predictionAttempts=" + predictionAttempts
+                    + " predictionCandidates=" + predictionCandidates
+                    + " predictionRejected=" + predictionRejected
                     + " topLevelResults=" + topLevelResults
                     + " fullResults=" + fullResults
                     + " rejectedPartialResults=" + rejectedPartialResults
