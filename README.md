@@ -84,8 +84,10 @@ Implemented:
 - reflection discovery for constructor productions
 - multiple constructors as alternatives
 - interface alternatives inside an explicit class universe
+- abstract class alternatives inside an explicit class universe
 - built-in terminals for `Integer`, `Double`, and `Boolean`
 - explicit `@Terminal` and `@Keyword` terminals
+- enum keyword terminals through `@Keywords`
 - grammar model metadata for arrays, collections, `Optional<T>`, `@OneOrMore`, and `@Separator`
 - internal lexer `Lexeme` model
 - internal master-regexp builder with lexer priority ordering
@@ -97,7 +99,9 @@ Implemented:
 - real `Parser.parse(...)` v1 through a reflective backtracking parser
 - object construction for constructor productions with single parts
 - built-in terminal conversion for `Integer`, `Double`, and `Boolean`
+- enum terminal conversion to enum constants
 - interface alternatives inside `Parser.init(...)` during parsing
+- abstract class alternatives inside `Parser.init(...)` during parsing
 - implicit whitespace skipping in parser v1
 - parsing for array parameters with repetition, `@OneOrMore`, and `@Separator`
 
@@ -1587,8 +1591,8 @@ classes.
   accepting trace is selected?
 - How should skip terminals be registered: globally per grammar, discovered by
   classpath scanning, or only when reachable from a grammar module?
-- Should enum terminals use enum constant names directly, lower-case names, or
-  explicit values provided by annotations or constructor fields?
+- Should enum terminals later support explicit values provided by annotations
+  or constructor fields, beyond the current lower-case enum constant names?
 - How should Priluka read Lombok-generated constructors and field order in a
   way that stays predictable with Java 8 reflection?
 - Should `@RegexGroup` be allowed on both constructor parameters and fields, or

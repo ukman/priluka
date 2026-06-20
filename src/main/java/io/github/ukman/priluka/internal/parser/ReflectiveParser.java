@@ -473,7 +473,21 @@ public final class ReflectiveParser {
         if (Boolean.class.equals(type) || Boolean.TYPE.equals(type)) {
             return Boolean.valueOf(text);
         }
+        if (type.isEnum()) {
+            return enumValue(type, text);
+        }
         return instantiateTerminal(type, lexeme);
+    }
+
+    private Object enumValue(Class<?> type, String text) {
+        Object[] constants = type.getEnumConstants();
+        for (Object constant : constants) {
+            Enum<?> enumConstant = (Enum<?>) constant;
+            if (enumConstant.name().equalsIgnoreCase(text)) {
+                return enumConstant;
+            }
+        }
+        throw new ParseException("Unknown enum terminal value " + text + " for " + type.getName());
     }
 
     private Object instantiateTerminal(Class<?> type, Lexeme lexeme) {

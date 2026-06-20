@@ -1,6 +1,7 @@
 package io.github.ukman.priluka;
 
 import io.github.ukman.priluka.annotation.Keyword;
+import io.github.ukman.priluka.annotation.Keywords;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -38,6 +39,23 @@ class ParserTest {
     }
 
     @Test
+    void parsesAbstractClassAlternativeFromInitializedUniverse() {
+        AstNode node = Parser
+            .init(AstNode.class, TextNode.class, NumberNode.class)
+            .parse(AstNode.class, "number");
+
+        assertInstanceOf(NumberNode.class, node);
+    }
+
+    @Test
+    void parsesEnumKeywordTerminal() {
+        BooleanLiteralExpression expression = Parser
+            .parse(BooleanLiteralExpression.class, "true");
+
+        assertEquals(BooleanLiteral.TRUE, expression.literal);
+    }
+
+    @Test
     void parsesDeepRightRecursiveGrammarWithoutJvmStackOverflow() {
         DeepGrammar.Start start = Parser
             .initFromOuterClass(DeepGrammar.class)
@@ -65,6 +83,47 @@ class ParserTest {
         NumberExpression(Integer value) {
             this.value = value;
         }
+    }
+
+    abstract static class AstNode {
+    }
+
+    static class TextNode extends AstNode {
+        final TextKeyword text;
+
+        TextNode(TextKeyword text) {
+            this.text = text;
+        }
+    }
+
+    static class NumberNode extends AstNode {
+        final NumberKeyword number;
+
+        NumberNode(NumberKeyword number) {
+            this.number = number;
+        }
+    }
+
+    @Keyword("text")
+    static class TextKeyword {
+    }
+
+    @Keyword("number")
+    static class NumberKeyword {
+    }
+
+    static class BooleanLiteralExpression {
+        final BooleanLiteral literal;
+
+        BooleanLiteralExpression(BooleanLiteral literal) {
+            this.literal = literal;
+        }
+    }
+
+    @Keywords
+    enum BooleanLiteral {
+        FALSE,
+        TRUE
     }
 
     static final class DeepGrammar {

@@ -178,7 +178,7 @@ public final class GrammarModelBuilder {
             caseSensitive = keyword.caseSensitive();
         } else if (type.isEnum() && type.isAnnotationPresent(Keywords.class)) {
             Keywords keywords = type.getAnnotation(Keywords.class);
-            kind = TerminalSymbol.Kind.KEYWORD;
+            kind = TerminalSymbol.Kind.REGEXP;
             pattern = enumKeywordText(type);
             priority = keywords.priority();
             caseSensitive = keywords.caseSensitive();
@@ -241,11 +241,17 @@ public final class GrammarModelBuilder {
 
     private String enumKeywordText(Class<?> enumType) {
         Object[] constants = enumType.getEnumConstants();
-        List<String> names = new ArrayList<String>();
+        StringBuilder pattern = new StringBuilder();
         for (Object constant : constants) {
-            names.add(((Enum<?>) constant).name().toLowerCase());
+            if (pattern.length() > 0) {
+                pattern.append('|');
+            }
+            pattern.append(((Enum<?>) constant).name().toLowerCase());
         }
-        return names.toString();
+        if (!enumType.getAnnotation(Keywords.class).caseSensitive()) {
+            return "(?iu:" + pattern + ")";
+        }
+        return pattern.toString();
     }
 
     private Class<?> collectionElementType(Parameter parameter) {

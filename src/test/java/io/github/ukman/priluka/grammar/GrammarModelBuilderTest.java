@@ -2,6 +2,7 @@ package io.github.ukman.priluka.grammar;
 
 import io.github.ukman.priluka.Parser;
 import io.github.ukman.priluka.annotation.Keyword;
+import io.github.ukman.priluka.annotation.Keywords;
 import io.github.ukman.priluka.annotation.OneOrMore;
 import io.github.ukman.priluka.annotation.Separator;
 import io.github.ukman.priluka.annotation.Terminal;
@@ -43,6 +44,29 @@ class GrammarModelBuilderTest {
                 + "IfStatement => empty",
             model.toBnf()
         );
+    }
+
+    @Test
+    void describesAbstractClassImplementationsAsAlternativesInsideUniverse() {
+        GrammarModel model = Parser
+            .init(AstNode.class, TextNode.class, NumberNode.class)
+            .describe(AstNode.class);
+
+        assertEquals(
+            "AstNode => NumberNode" + System.lineSeparator()
+                + "AstNode => TextNode" + System.lineSeparator()
+                + "NumberNode => NumberKeyword" + System.lineSeparator()
+                + "TextNode => TextKeyword",
+            model.toBnf()
+        );
+    }
+
+    @Test
+    void describesEnumKeywordsAsTerminal() {
+        GrammarModel model = Parser.describe(BooleanLiteralExpression.class);
+
+        assertEquals("BooleanLiteralExpression => BooleanLiteral", model.toBnf());
+        assertEquals("false|true", model.getTerminals().get(0).getPattern());
     }
 
     @Test
@@ -99,6 +123,38 @@ class GrammarModelBuilderTest {
     }
 
     static class ForStatement implements Statement {
+    }
+
+    abstract static class AstNode {
+    }
+
+    static class TextNode extends AstNode {
+        public TextNode(TextKeyword text) {
+        }
+    }
+
+    static class NumberNode extends AstNode {
+        public NumberNode(NumberKeyword number) {
+        }
+    }
+
+    @Keyword("text")
+    static class TextKeyword {
+    }
+
+    @Keyword("number")
+    static class NumberKeyword {
+    }
+
+    static class BooleanLiteralExpression {
+        public BooleanLiteralExpression(BooleanLiteral literal) {
+        }
+    }
+
+    @Keywords
+    enum BooleanLiteral {
+        FALSE,
+        TRUE
     }
 
     @Terminal(regexp = ",")
