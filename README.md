@@ -1256,6 +1256,48 @@ such as `((1*2-3/4)*(5-4)/2)`, joined by arithmetic operators.
 Use `-Dpriluka.arithmetic.numbers=large` to generate 5-9 digit integer
 terminals instead of one-digit terminals.
 
+Manual parser engine benchmark for the NFA-compatible separated number-list
+grammar:
+
+```bash
+mvn -Dpriluka.perf=true \
+    -Dtest=ParserPerformanceTest \
+    -Dpriluka.parser.bytes=1024,10240,102400 \
+    -Dpriluka.perf.warmup=1 \
+    -Dpriluka.perf.runs=3 \
+    test
+```
+
+The benchmark compares:
+
+- `public-parser-auto`: public `Parser` path with automatic engine selection
+  and current model-discovery overhead
+- `cached-nfa-engine`: direct `NfaParseEngine` over a cached `GrammarModel`
+- `cached-reflective-engine`: direct `ReflectiveParser` over the same cached
+  `GrammarModel`
+
+Current local result:
+
+```text
+public-parser-auto bytes=1025 values=171 avg=0.0080s speed=0.12 MiB/s values=21274/s
+cached-nfa-engine bytes=1025 values=171 avg=0.0051s speed=0.19 MiB/s values=33363/s
+cached-reflective-engine bytes=1025 values=171 avg=0.0056s speed=0.17 MiB/s values=30271/s
+
+public-parser-auto bytes=10241 values=1707 avg=0.0723s speed=0.14 MiB/s values=23603/s
+cached-nfa-engine bytes=10241 values=1707 avg=0.0362s speed=0.27 MiB/s values=47200/s
+cached-reflective-engine bytes=10241 values=1707 avg=0.0505s speed=0.19 MiB/s values=33770/s
+
+public-parser-auto bytes=102401 values=17067 avg=2.2450s speed=0.04 MiB/s values=7602/s
+cached-nfa-engine bytes=102401 values=17067 avg=2.2870s speed=0.04 MiB/s values=7463/s
+cached-reflective-engine bytes=102401 values=17067 avg=10.2026s speed=0.01 MiB/s values=1673/s
+```
+
+The 100 KiB result shows that the current NFA path is already much faster than
+the reflective parser on the cached-engine comparison, but its absolute speed is
+still poor. The likely hot spot is the current NFA trace representation: every
+configuration stores a copied list of trace steps. A backpointer chain should be
+the next optimization target.
+
 It also includes a small SQL `select` grammar that exercises keyword/identifier
 ambiguity and backtracking conflicts:
 
