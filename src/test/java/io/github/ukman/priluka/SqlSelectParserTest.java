@@ -33,6 +33,38 @@ class SqlSelectParserTest {
         );
     }
 
+    @Test
+    void parsesFunctionCallInSelectList() {
+        assertSql(
+            "select count(*) from person",
+            "select count(*) from person"
+        );
+    }
+
+    @Test
+    void parsesBetweenGroupByHavingAndOrderBy() {
+        assertSql(
+            "select last_name, count(*) from person group by last_name having count(*) between 1 and 10 order by last_name",
+            "select last_name, count(*) from person group by last_name having count(*) between 1 and 10 order by last_name"
+        );
+    }
+
+    @Test
+    void parsesInCondition() {
+        assertSql(
+            "select first_name from person where id in (1, 2, 3)",
+            "select first_name from person where id in (1, 2, 3)"
+        );
+    }
+
+    @Test
+    void parsesNotInConditionAndFunctionExpression() {
+        assertSql(
+            "select first_name from person where abs(person.id) not in (1, 2)",
+            "select first_name from person where abs(person.id) not in (1, 2)"
+        );
+    }
+
     private void assertSql(String input, String expected) {
         SqlGrammar.SelectStatement statement = Parser
             .initFromOuterClass(SqlGrammar.class)
@@ -48,17 +80,37 @@ class SqlSelectParserTest {
             final From from;
             final TableReference fromTable;
             final WhereClauseTail whereClause;
+            final GroupByClauseTail groupByClause;
+            final HavingClauseTail havingClause;
+            final OrderByClauseTail orderByClause;
 
-            SelectStatement(Select select, SelectList selectList, From from, TableReference fromTable, WhereClauseTail whereClause) {
+            SelectStatement(
+                Select select,
+                SelectList selectList,
+                From from,
+                TableReference fromTable,
+                WhereClauseTail whereClause,
+                GroupByClauseTail groupByClause,
+                HavingClauseTail havingClause,
+                OrderByClauseTail orderByClause
+            ) {
                 this.select = select;
                 this.selectList = selectList;
                 this.from = from;
                 this.fromTable = fromTable;
                 this.whereClause = whereClause;
+                this.groupByClause = groupByClause;
+                this.havingClause = havingClause;
+                this.orderByClause = orderByClause;
             }
 
             String sql() {
-                return "select " + selectList.sql() + " from " + fromTable.sql() + whereClause.sql();
+                return "select " + selectList.sql()
+                    + " from " + fromTable.sql()
+                    + whereClause.sql()
+                    + groupByClause.sql()
+                    + havingClause.sql()
+                    + orderByClause.sql();
             }
         }
 
@@ -134,6 +186,19 @@ class SqlSelectParserTest {
             @Override
             public String sql() {
                 return name.sql();
+            }
+        }
+
+        static class FunctionSelectItem implements SelectItem {
+            final FunctionCall functionCall;
+
+            FunctionSelectItem(FunctionCall functionCall) {
+                this.functionCall = functionCall;
+            }
+
+            @Override
+            public String sql() {
+                return functionCall.sql();
             }
         }
 
@@ -306,19 +371,187 @@ class SqlSelectParserTest {
             }
         }
 
-        static class ConditionalExpression {
+        interface GroupByClauseTail {
+            String sql();
+        }
+
+        static class GroupByColumnsTail implements GroupByClauseTail {
+            final Group group;
+            final By by;
+            final ValueExpressionList columns;
+
+            GroupByColumnsTail(Group group, By by, ValueExpressionList columns) {
+                this.group = group;
+                this.by = by;
+                this.columns = columns;
+            }
+
+            @Override
+            public String sql() {
+                return " group by " + columns.sql();
+            }
+        }
+
+        static class ZEmptyGroupByClauseTail implements GroupByClauseTail {
+            ZEmptyGroupByClauseTail() {
+            }
+
+            @Override
+            public String sql() {
+                return "";
+            }
+        }
+
+        interface HavingClauseTail {
+            String sql();
+        }
+
+        static class HavingConditionTail implements HavingClauseTail {
+            final Having having;
+            final ConditionalExpression condition;
+
+            HavingConditionTail(Having having, ConditionalExpression condition) {
+                this.having = having;
+                this.condition = condition;
+            }
+
+            @Override
+            public String sql() {
+                return " having " + condition.sql();
+            }
+        }
+
+        static class ZEmptyHavingClauseTail implements HavingClauseTail {
+            ZEmptyHavingClauseTail() {
+            }
+
+            @Override
+            public String sql() {
+                return "";
+            }
+        }
+
+        interface OrderByClauseTail {
+            String sql();
+        }
+
+        static class OrderByColumnsTail implements OrderByClauseTail {
+            final Order order;
+            final By by;
+            final ValueExpressionList columns;
+
+            OrderByColumnsTail(Order order, By by, ValueExpressionList columns) {
+                this.order = order;
+                this.by = by;
+                this.columns = columns;
+            }
+
+            @Override
+            public String sql() {
+                return " order by " + columns.sql();
+            }
+        }
+
+        static class ZEmptyOrderByClauseTail implements OrderByClauseTail {
+            ZEmptyOrderByClauseTail() {
+            }
+
+            @Override
+            public String sql() {
+                return "";
+            }
+        }
+
+        interface ConditionalExpression {
+            String sql();
+        }
+
+        static class EqualsConditionalExpression implements ConditionalExpression {
             final ValueExpression left;
             final Equals equals;
             final ValueExpression right;
 
-            ConditionalExpression(ValueExpression left, Equals equals, ValueExpression right) {
+            EqualsConditionalExpression(ValueExpression left, Equals equals, ValueExpression right) {
                 this.left = left;
                 this.equals = equals;
                 this.right = right;
             }
 
-            String sql() {
+            @Override
+            public String sql() {
                 return left.sql() + " = " + right.sql();
+            }
+        }
+
+        static class BetweenConditionalExpression implements ConditionalExpression {
+            final ValueExpression value;
+            final Between between;
+            final ValueExpression lower;
+            final And and;
+            final ValueExpression upper;
+
+            BetweenConditionalExpression(ValueExpression value, Between between, ValueExpression lower, And and, ValueExpression upper) {
+                this.value = value;
+                this.between = between;
+                this.lower = lower;
+                this.and = and;
+                this.upper = upper;
+            }
+
+            @Override
+            public String sql() {
+                return value.sql() + " between " + lower.sql() + " and " + upper.sql();
+            }
+        }
+
+        static class InConditionalExpression implements ConditionalExpression {
+            final ValueExpression value;
+            final In in;
+            final OpenParen openParen;
+            final ValueExpressionList values;
+            final CloseParen closeParen;
+
+            InConditionalExpression(ValueExpression value, In in, OpenParen openParen, ValueExpressionList values, CloseParen closeParen) {
+                this.value = value;
+                this.in = in;
+                this.openParen = openParen;
+                this.values = values;
+                this.closeParen = closeParen;
+            }
+
+            @Override
+            public String sql() {
+                return value.sql() + " in (" + values.sql() + ")";
+            }
+        }
+
+        static class NotInConditionalExpression implements ConditionalExpression {
+            final ValueExpression value;
+            final Not not;
+            final In in;
+            final OpenParen openParen;
+            final ValueExpressionList values;
+            final CloseParen closeParen;
+
+            NotInConditionalExpression(
+                ValueExpression value,
+                Not not,
+                In in,
+                OpenParen openParen,
+                ValueExpressionList values,
+                CloseParen closeParen
+            ) {
+                this.value = value;
+                this.not = not;
+                this.in = in;
+                this.openParen = openParen;
+                this.values = values;
+                this.closeParen = closeParen;
+            }
+
+            @Override
+            public String sql() {
+                return value.sql() + " not in (" + values.sql() + ")";
             }
         }
 
@@ -352,6 +585,19 @@ class SqlSelectParserTest {
             }
         }
 
+        static class FunctionValueExpression implements ValueExpression {
+            final FunctionCall functionCall;
+
+            FunctionValueExpression(FunctionCall functionCall) {
+                this.functionCall = functionCall;
+            }
+
+            @Override
+            public String sql() {
+                return functionCall.sql();
+            }
+        }
+
         static class ParenthesizedValueExpression implements ValueExpression {
             final OpenParen openParen;
             final ValueExpression value;
@@ -366,6 +612,99 @@ class SqlSelectParserTest {
             @Override
             public String sql() {
                 return "(" + value.sql() + ")";
+            }
+        }
+
+        static class FunctionCall {
+            final QualifiedName name;
+            final OpenParen openParen;
+            final FunctionArguments arguments;
+            final CloseParen closeParen;
+
+            FunctionCall(QualifiedName name, OpenParen openParen, FunctionArguments arguments, CloseParen closeParen) {
+                this.name = name;
+                this.openParen = openParen;
+                this.arguments = arguments;
+                this.closeParen = closeParen;
+            }
+
+            String sql() {
+                return name.sql() + "(" + arguments.sql() + ")";
+            }
+        }
+
+        interface FunctionArguments {
+            String sql();
+        }
+
+        static class StarFunctionArguments implements FunctionArguments {
+            final Star star;
+
+            StarFunctionArguments(Star star) {
+                this.star = star;
+            }
+
+            @Override
+            public String sql() {
+                return "*";
+            }
+        }
+
+        static class ValueListFunctionArguments implements FunctionArguments {
+            final ValueExpressionList values;
+
+            ValueListFunctionArguments(ValueExpressionList values) {
+                this.values = values;
+            }
+
+            @Override
+            public String sql() {
+                return values.sql();
+            }
+        }
+
+        static class ValueExpressionList {
+            final ValueExpression value;
+            final ValueExpressionListTail tail;
+
+            ValueExpressionList(ValueExpression value, ValueExpressionListTail tail) {
+                this.value = value;
+                this.tail = tail;
+            }
+
+            String sql() {
+                return value.sql() + tail.sql();
+            }
+        }
+
+        interface ValueExpressionListTail {
+            String sql();
+        }
+
+        static class CommaValueExpressionListTail implements ValueExpressionListTail {
+            final Comma comma;
+            final ValueExpression value;
+            final ValueExpressionListTail tail;
+
+            CommaValueExpressionListTail(Comma comma, ValueExpression value, ValueExpressionListTail tail) {
+                this.comma = comma;
+                this.value = value;
+                this.tail = tail;
+            }
+
+            @Override
+            public String sql() {
+                return ", " + value.sql() + tail.sql();
+            }
+        }
+
+        static class ZEmptyValueExpressionListTail implements ValueExpressionListTail {
+            ZEmptyValueExpressionListTail() {
+            }
+
+            @Override
+            public String sql() {
+                return "";
             }
         }
 
@@ -449,6 +788,38 @@ class SqlSelectParserTest {
 
         @Keyword("where")
         static class Where {
+        }
+
+        @Keyword("group")
+        static class Group {
+        }
+
+        @Keyword("by")
+        static class By {
+        }
+
+        @Keyword("having")
+        static class Having {
+        }
+
+        @Keyword("order")
+        static class Order {
+        }
+
+        @Keyword("between")
+        static class Between {
+        }
+
+        @Keyword("and")
+        static class And {
+        }
+
+        @Keyword("in")
+        static class In {
+        }
+
+        @Keyword("not")
+        static class Not {
         }
 
         @Keyword("*")

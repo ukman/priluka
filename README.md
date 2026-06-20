@@ -1209,6 +1209,10 @@ select * from person
 select p.* from person p
 select * from (select * from person) as t
 select last_name, first_name from db.person as p left join db.company c where p.company_id = c.id
+select count(*) from person
+select last_name, count(*) from person group by last_name having count(*) between 1 and 10 order by last_name
+select first_name from person where id in (1, 2, 3)
+select first_name from person where abs(person.id) not in (1, 2)
 ```
 
 The last query is deliberately useful for conflict testing because `left` can
