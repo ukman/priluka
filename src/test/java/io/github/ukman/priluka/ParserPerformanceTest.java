@@ -5,6 +5,13 @@ import io.github.ukman.priluka.annotation.Keywords;
 import io.github.ukman.priluka.annotation.Separator;
 import io.github.ukman.priluka.annotation.Terminal;
 import io.github.ukman.priluka.grammar.GrammarModel;
+import io.github.ukman.priluka.grammar.TerminalSymbol;
+import io.github.ukman.priluka.internal.GrammarModelBuilder;
+import io.github.ukman.priluka.internal.lexer.Lexeme;
+import io.github.ukman.priluka.internal.lexer.Lexer;
+import io.github.ukman.priluka.internal.lexer.LexerOptions;
+import io.github.ukman.priluka.internal.lexer.LexerSpec;
+import io.github.ukman.priluka.internal.lexer.Lexers;
 import io.github.ukman.priluka.internal.nfa.NfaParseEngine;
 import io.github.ukman.priluka.internal.nfa.NfaRecognizer;
 import io.github.ukman.priluka.internal.parser.ParseEngine;
@@ -12,6 +19,9 @@ import io.github.ukman.priluka.internal.parser.ReflectiveParser;
 import io.github.ukman.priluka.internal.parser.TraceObjectBuilder;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
+
+import java.util.ArrayList;
+import java.util.List;
 
 class ParserPerformanceTest {
     private static final int WARMUP_RUNS = Integer.getInteger("priluka.perf.warmup", 1);
@@ -172,6 +182,36 @@ class ParserPerformanceTest {
 
         double averageSeconds = (totalNanos / (double) MEASURE_RUNS) / 1_000_000_000.0;
         System.out.println(new FindResult("present-perfect-find", input.length(), found, averageSeconds));
+    }
+
+    @Test
+    void lexesPresentPerfectEnglishTextOnly() {
+        Assumptions.assumeTrue(
+            Boolean.getBoolean("priluka.perf"),
+            "Manual parser performance dump. Run with -Dpriluka.perf=true -Dtest=ParserPerformanceTest."
+        );
+
+        Parser.InitializedParser parser = Parser.initFromOuterClass(PresentPerfectGrammar.class);
+        GrammarModel model = parser.describe(PresentPerfectGrammar.SentencePerfect.class);
+        Lexer lexer = presentPerfectLexer(model);
+        String input = generatedPresentPerfectText(
+            Integer.getInteger("priluka.parser.perfect.bytes", 100 * 1024)
+        );
+
+        int tokens = 0;
+        for (int i = 0; i < WARMUP_RUNS; i++) {
+            tokens = lexer.tokenize(input).size();
+        }
+
+        long totalNanos = 0;
+        for (int i = 0; i < MEASURE_RUNS; i++) {
+            long start = System.nanoTime();
+            tokens = lexer.tokenize(input).size();
+            totalNanos += System.nanoTime() - start;
+        }
+
+        double averageSeconds = (totalNanos / (double) MEASURE_RUNS) / 1_000_000_000.0;
+        System.out.println(new LexerResult("present-perfect-lexer", input.length(), tokens, averageSeconds));
     }
 
     private Result measurePublic(Parser.InitializedParser parser, String label, String input) {
@@ -409,6 +449,13 @@ class ParserPerformanceTest {
         }
     }
 
+    private Lexer presentPerfectLexer(GrammarModel model) {
+        List<TerminalSymbol> terminals = new ArrayList<TerminalSymbol>(model.getTerminals());
+        terminals.add(GrammarModelBuilder.terminalSymbol(PresentPerfectGrammar.WordToken.class));
+        terminals.add(new TerminalSymbol(PerfWhitespace.class, TerminalSymbol.Kind.REGEXP, "\\s+", true, -1000));
+        return Lexers.defaultLexer(new LexerSpec(terminals), LexerOptions.DEFAULT);
+    }
+
     private String generatedPresentPerfectText(int targetBytes) {
         String[] valid = new String[] {
             " i have started ",
@@ -554,6 +601,37 @@ class ParserPerformanceTest {
         }
     }
 
+    private static final class LexerResult {
+        private final String label;
+        private final int bytes;
+        private final int tokens;
+        private final double averageSeconds;
+        private final double mebibytesPerSecond;
+        private final double tokensPerSecond;
+
+        private LexerResult(String label, int bytes, int tokens, double averageSeconds) {
+            this.label = label;
+            this.bytes = bytes;
+            this.tokens = tokens;
+            this.averageSeconds = averageSeconds;
+            this.mebibytesPerSecond = (bytes / (1024.0 * 1024.0)) / averageSeconds;
+            this.tokensPerSecond = tokens / averageSeconds;
+        }
+
+        @Override
+        public String toString() {
+            return String.format(
+                "%s bytes=%d tokens=%d avg=%.4fs speed=%.2f MiB/s tokens=%.0f/s",
+                label,
+                Integer.valueOf(bytes),
+                Integer.valueOf(tokens),
+                Double.valueOf(averageSeconds),
+                Double.valueOf(mebibytesPerSecond),
+                Double.valueOf(tokensPerSecond)
+            );
+        }
+    }
+
     static class NumberArray {
         final Integer[] numbers;
 
@@ -564,6 +642,9 @@ class ParserPerformanceTest {
 
     @Keyword(",")
     static class Comma {
+    }
+
+    static class PerfWhitespace {
     }
 
     static final class PresentPerfectGrammar {
