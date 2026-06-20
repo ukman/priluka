@@ -258,8 +258,10 @@ class ParserPerformanceTest {
         return "select " + selectList
             + " from table1 t1"
             + " left join table2 t2 on t1.id=t2.id"
-            + " left join table3 t3 on t2.id=t3.id"
-            + " left join table4 t4 on t3.id=t4.id";
+            + " right join table3 t3 on t2.id=t3.id"
+            + " outer join table4 t4 on t3.id=t4.id"
+            + " inner join table5 t5 on t4.id=t5.id"
+            + " join table6 t6 on t5.id=t6.id";
     }
 
     private String generatedJoinHeavySimplifiedSql(int fieldCount, int joinCount) {
@@ -270,7 +272,9 @@ class ParserPerformanceTest {
         }
         result.append(" from table0 t0");
         for (int i = 1; i <= joinCount; i++) {
-            result.append(" left join table")
+            result.append(' ')
+                .append(joinSpec(i))
+                .append(" table")
                 .append(i)
                 .append(" t")
                 .append(i)
@@ -281,6 +285,21 @@ class ParserPerformanceTest {
                 .append(".id");
         }
         return result.toString();
+    }
+
+    private String joinSpec(int index) {
+        switch (index % 5) {
+            case 1:
+                return "left join";
+            case 2:
+                return "right join";
+            case 3:
+                return "outer join";
+            case 4:
+                return "inner join";
+            default:
+                return "join";
+        }
     }
 
     private static final class EngineRun {

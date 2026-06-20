@@ -1309,6 +1309,7 @@ from table
 from db.table
 from table1 t1 left join table2 t2 on t1.id=t2.id
 from table1 t1 left join table2 t2 on t1.id=t2.id left join table3 t3 on t2.id=t3.id
+from table1 t1 join table2 t2 on t1.id=t2.id right join table3 t3 on t2.id=t3.id outer join table4 t4 on t3.id=t4.id inner join table5 t5 on t4.id=t5.id
 ```
 
 Run only the simplified SQL dump with:

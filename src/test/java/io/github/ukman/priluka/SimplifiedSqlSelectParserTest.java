@@ -56,6 +56,14 @@ class SimplifiedSqlSelectParserTest {
         );
     }
 
+    @Test
+    void parsesDifferentJoinSpecs() {
+        assertSql(
+            "select t1.name from table1 t1 join table2 t2 on t1.id=t2.id right join table3 t3 on t2.id=t3.id outer join table4 t4 on t3.id=t4.id inner join table5 t5 on t4.id=t5.id",
+            "select t1.name from table1 t1 join table2 t2 on t1.id = t2.id right join table3 t3 on t2.id = t3.id outer join table4 t4 on t3.id = t4.id inner join table5 t5 on t4.id = t5.id"
+        );
+    }
+
     private void assertSql(String input, String expected) {
         SimpleSqlGrammar.SelectStatement statement = Parser
             .initFromOuterClass(SimpleSqlGrammar.class)
@@ -172,8 +180,7 @@ class SimplifiedSqlSelectParserTest {
         }
 
         static class JoinClause {
-            final Left left;
-            final Join join;
+            final JoinSpec joinSpec;
             final TableDef tableDef;
             final On on;
             final QualifiedName leftName;
@@ -181,16 +188,14 @@ class SimplifiedSqlSelectParserTest {
             final QualifiedName rightName;
 
             JoinClause(
-                Left left,
-                Join join,
+                JoinSpec joinSpec,
                 TableDef tableDef,
                 On on,
                 QualifiedName leftName,
                 Equals equals,
                 QualifiedName rightName
             ) {
-                this.left = left;
-                this.join = join;
+                this.joinSpec = joinSpec;
                 this.tableDef = tableDef;
                 this.on = on;
                 this.leftName = leftName;
@@ -199,9 +204,82 @@ class SimplifiedSqlSelectParserTest {
             }
 
             String sql() {
-                return " left join " + tableDef.sql()
+                return " " + joinSpec.sql() + " " + tableDef.sql()
                     + " on " + leftName.sql()
                     + " = " + rightName.sql();
+            }
+        }
+
+        static class JoinSpec {
+            final Optional<JoinModifier> modifier;
+            final Join join;
+
+            JoinSpec(Optional<JoinModifier> modifier, Join join) {
+                this.modifier = modifier;
+                this.join = join;
+            }
+
+            String sql() {
+                if (modifier.isPresent()) {
+                    return modifier.get().sql() + " join";
+                }
+                return "join";
+            }
+        }
+
+        interface JoinModifier {
+            String sql();
+        }
+
+        static class LeftJoinModifier implements JoinModifier {
+            final Left left;
+
+            LeftJoinModifier(Left left) {
+                this.left = left;
+            }
+
+            @Override
+            public String sql() {
+                return "left";
+            }
+        }
+
+        static class RightJoinModifier implements JoinModifier {
+            final Right right;
+
+            RightJoinModifier(Right right) {
+                this.right = right;
+            }
+
+            @Override
+            public String sql() {
+                return "right";
+            }
+        }
+
+        static class OuterJoinModifier implements JoinModifier {
+            final Outer outer;
+
+            OuterJoinModifier(Outer outer) {
+                this.outer = outer;
+            }
+
+            @Override
+            public String sql() {
+                return "outer";
+            }
+        }
+
+        static class InnerJoinModifier implements JoinModifier {
+            final Inner inner;
+
+            InnerJoinModifier(Inner inner) {
+                this.inner = inner;
+            }
+
+            @Override
+            public String sql() {
+                return "inner";
             }
         }
 
@@ -251,6 +329,18 @@ class SimplifiedSqlSelectParserTest {
 
         @Keyword("left")
         static class Left {
+        }
+
+        @Keyword("right")
+        static class Right {
+        }
+
+        @Keyword("outer")
+        static class Outer {
+        }
+
+        @Keyword("inner")
+        static class Inner {
         }
 
         @Keyword("join")
