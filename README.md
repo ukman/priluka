@@ -129,6 +129,21 @@ The benchmark also reports scan-only mode, which counts tokens without creating
 `Lexeme` objects or storing token lists. This estimates the potential win from a
 streaming/cursor lexer or more careful allocation strategy.
 
+Manual Java regex engine baseline:
+
+```bash
+mvn -Dpriluka.perf=true \
+    -Dtest=RegexEnginePerformanceTest \
+    -Dpriluka.perf.bytes=5242880 \
+    -Dpriluka.perf.warmup=3 \
+    -Dpriluka.perf.runs=5 \
+    test
+```
+
+This benchmark generates about 5 MiB of random 1-10 digit numbers separated by
+spaces and counts matches of `[0-9]+` with plain `Matcher.find()`, without
+calling `group()`.
+
 ## Design Direction
 
 - A grammar is primarily described by Java classes.
