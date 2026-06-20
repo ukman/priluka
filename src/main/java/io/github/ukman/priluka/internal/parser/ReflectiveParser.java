@@ -47,47 +47,48 @@ public final class ReflectiveParser {
         }
         Lexer lexer = Lexers.defaultLexer(new LexerSpec(terminalsWithImplicitWhitespace()), LexerOptions.DEFAULT);
         List<Lexeme> lexemes = lexer.tokenize(input);
-        List<ParseResult> results = parseNonterminal(start, lexemes, 0);
-        if (debug) {
-            debugStats.topLevelResults = results.size();
-        }
-        ParseResult partial = null;
-        ParseResult full = null;
-        for (ParseResult result : results) {
-            if (result.position == lexemes.size()) {
-                if (debug) {
-                    debugStats.fullResults++;
-                }
-                if (full == null) {
-                    full = result;
-                }
-            } else {
-                if (debug) {
-                    debugStats.rejectedPartialResults++;
-                }
-                if (partial == null || result.position > partial.position) {
-                    partial = result;
-                }
-            }
-        }
-        if (full != null) {
+        ParseSearch search = parseStart(start, lexemes);
+        if (search.full != null) {
             if (debug) {
                 debugStats.print(start, input.length(), lexemes.size());
             }
-            return start.cast(full.value);
+            return start.cast(search.full.value);
         }
 
-        if (partial != null && partial.position < lexemes.size()) {
+        if (search.partial != null && search.partial.position < lexemes.size()) {
             if (debug) {
                 debugStats.print(start, input.length(), lexemes.size());
             }
-            Lexeme unexpected = lexemes.get(partial.position);
+            Lexeme unexpected = lexemes.get(search.partial.position);
             throw new ParseException("Unexpected token at offset " + unexpected.getStart() + ": " + unexpected.getText());
         }
         if (debug) {
             debugStats.print(start, input.length(), lexemes.size());
         }
         throw new ParseException("Input does not match start symbol: " + start.getName());
+    }
+
+    private ParseSearch parseStart(Class<?> type, List<Lexeme> lexemes) {
+        final ParseSearch search = new ParseSearch(lexemes.size());
+        Deque<ParseFrame> frames = new ArrayDeque<ParseFrame>();
+        frames.push(new NonterminalFrame(type, lexemes, 0, new ResultSink() {
+            @Override
+            public void accept(ParseResult result) {
+                search.accept(result);
+            }
+
+            @Override
+            public boolean isDone() {
+                return search.full != null;
+            }
+
+            @Override
+            public int preferredPosition() {
+                return search.endPosition;
+            }
+        }, 1));
+        runFrames(frames, search);
+        return search;
     }
 
     private List<ParseResult> parseNonterminal(Class<?> type, List<Lexeme> lexemes, int position) {
@@ -98,13 +99,23 @@ public final class ReflectiveParser {
             public void accept(ParseResult result) {
                 results.add(result);
             }
+
+            @Override
+            public boolean isDone() {
+                return false;
+            }
+
+            @Override
+            public int preferredPosition() {
+                return -1;
+            }
         }, 1));
-        runFrames(frames);
+        runFrames(frames, null);
         return results;
     }
 
-    private void runFrames(Deque<ParseFrame> frames) {
-        while (!frames.isEmpty()) {
+    private void runFrames(Deque<ParseFrame> frames, ParseSearch search) {
+        while (!frames.isEmpty() && (search == null || search.full == null)) {
             frames.pop().run(frames);
         }
     }
@@ -178,12 +189,10 @@ public final class ReflectiveParser {
             }
 
             if (partIndex == production.getParts().size()) {
-                for (ParseState state : states) {
-                    sink.accept(new ParseResult(instantiateProduction(production, state.values), state.position));
-                }
+                int emitted = emitProductionResults(production, states, sink);
                 if (debug) {
                     debugStats.productionMatches++;
-                    debugStats.parseResultsProduced += states.size();
+                    debugStats.parseResultsProduced += emitted;
                 }
                 return;
             }
@@ -214,6 +223,16 @@ public final class ReflectiveParser {
                     public void accept(ParseResult partResult) {
                         addNextState(nextStates, state, partResult);
                     }
+
+                    @Override
+                    public boolean isDone() {
+                        return false;
+                    }
+
+                    @Override
+                    public int preferredPosition() {
+                        return -1;
+                    }
                 }, depth + 1));
             }
         }
@@ -223,6 +242,27 @@ public final class ReflectiveParser {
             values.add(partResult.value);
             nextStates.add(new ParseState(partResult.position, values));
         }
+    }
+
+    private int emitProductionResults(Production production, List<ParseState> states, ResultSink sink) {
+        int preferredPosition = sink.preferredPosition();
+        if (preferredPosition >= 0) {
+            for (ParseState state : states) {
+                if (state.position == preferredPosition) {
+                    sink.accept(new ParseResult(instantiateProduction(production, state.values), state.position));
+                    return 1;
+                }
+            }
+        }
+        int emitted = 0;
+        for (ParseState state : states) {
+            sink.accept(new ParseResult(instantiateProduction(production, state.values), state.position));
+            emitted++;
+            if (sink.isDone()) {
+                break;
+            }
+        }
+        return emitted;
     }
 
     private final class AfterProductionPartFrame implements ParseFrame {
@@ -267,6 +307,10 @@ public final class ReflectiveParser {
 
     private interface ResultSink {
         void accept(ParseResult result);
+
+        boolean isDone();
+
+        int preferredPosition();
     }
 
     private List<ParseResult> parseTerminal(Class<?> type, List<Lexeme> lexemes, int position) {
@@ -393,6 +437,38 @@ public final class ReflectiveParser {
         private ParseResult(Object value, int position) {
             this.value = value;
             this.position = position;
+        }
+    }
+
+    private final class ParseSearch {
+        private final int endPosition;
+        private ParseResult full;
+        private ParseResult partial;
+
+        private ParseSearch(int endPosition) {
+            this.endPosition = endPosition;
+        }
+
+        private void accept(ParseResult result) {
+            if (debug) {
+                debugStats.topLevelResults++;
+            }
+            if (result.position == endPosition) {
+                if (debug) {
+                    debugStats.fullResults++;
+                }
+                if (full == null) {
+                    full = result;
+                }
+                return;
+            }
+
+            if (debug) {
+                debugStats.rejectedPartialResults++;
+            }
+            if (partial == null || result.position > partial.position) {
+                partial = result;
+            }
         }
     }
 
