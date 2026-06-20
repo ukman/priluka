@@ -88,6 +88,8 @@ Implemented:
 - NFA v1 subset diagnostics through `GrammarModel.checkNfaCompatibility()`
 - internal NFA graph model and first grammar-model-to-NFA compiler
 - internal NFA recognizer for accept/reject simulation
+- NFA accepting-path trace reconstruction for the supported v1 subset
+- internal `NfaParseEngine` adapter for the shared parse-engine contract
 - reflection discovery for constructor productions
 - multiple constructors as alternatives
 - interface alternatives inside an explicit class universe
@@ -117,8 +119,8 @@ Implemented:
 
 Not implemented yet:
 
-- accepting-path trace reconstruction from the NFA recognizer
-- object construction from an NFA parse trace
+- public fast-path selection between reflective parser and NFA parser
+- ambiguity diagnostics for multiple accepting NFA paths
 
 Manual lexer benchmark:
 
@@ -1428,10 +1430,12 @@ repetitions. Recursive nonterminal cycles are rejected for now, including
 ordinary expression grammars such as arithmetic expressions with parentheses.
 
 The internal `NfaCompiler` can already compile this supported subset into an
-NFA graph with epsilon transitions, terminal transitions, and production
-boundary transitions. The internal `NfaRecognizer` can run accept/reject
-simulation over the token stream. Accepting-path trace reconstruction is the
-next missing piece.
+NFA graph with epsilon transitions, terminal transitions, production boundary
+transitions, and variable-part semantic transitions for optional and repeated
+parts. The internal `NfaRecognizer` can run simulation over the token stream
+and reconstruct a `ParseTrace` from the accepting path. `NfaParseEngine` adapts
+that recognizer to the same `ParseEngine` contract used by the reflective
+parser.
 
 ### Parse Trace And Object Construction
 

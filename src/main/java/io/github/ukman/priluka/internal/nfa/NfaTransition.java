@@ -8,7 +8,13 @@ public final class NfaTransition {
         EPSILON,
         BEGIN_PRODUCTION,
         END_PRODUCTION,
-        TERMINAL
+        TERMINAL,
+        BEGIN_REPEAT,
+        APPEND_REPEAT_ELEMENT,
+        END_REPEAT,
+        BEGIN_OPTIONAL,
+        END_OPTIONAL_PRESENT,
+        END_OPTIONAL_ABSENT
     }
 
     private final NfaState from;
@@ -50,6 +56,30 @@ public final class NfaTransition {
         return new NfaTransition(from, to, Kind.TERMINAL, symbolType, null, part);
     }
 
+    static NfaTransition beginRepeat(NfaState from, NfaState to, ProductionPart part) {
+        return new NfaTransition(from, to, Kind.BEGIN_REPEAT, null, null, part);
+    }
+
+    static NfaTransition appendRepeatElement(NfaState from, NfaState to, ProductionPart part) {
+        return new NfaTransition(from, to, Kind.APPEND_REPEAT_ELEMENT, null, null, part);
+    }
+
+    static NfaTransition endRepeat(NfaState from, NfaState to, ProductionPart part) {
+        return new NfaTransition(from, to, Kind.END_REPEAT, null, null, part);
+    }
+
+    static NfaTransition beginOptional(NfaState from, NfaState to, ProductionPart part) {
+        return new NfaTransition(from, to, Kind.BEGIN_OPTIONAL, null, null, part);
+    }
+
+    static NfaTransition endOptionalPresent(NfaState from, NfaState to, ProductionPart part) {
+        return new NfaTransition(from, to, Kind.END_OPTIONAL_PRESENT, null, null, part);
+    }
+
+    static NfaTransition endOptionalAbsent(NfaState from, NfaState to, ProductionPart part) {
+        return new NfaTransition(from, to, Kind.END_OPTIONAL_ABSENT, null, null, part);
+    }
+
     public NfaState getFrom() {
         return from;
     }
@@ -84,6 +114,9 @@ public final class NfaTransition {
         }
         if (kind == Kind.END_PRODUCTION) {
             return from + " -end " + production.toBnf() + "-> " + to;
+        }
+        if (part != null) {
+            return from + " -" + kind + " " + part.getSymbolName() + "-> " + to;
         }
         return from + " -eps-> " + to;
     }

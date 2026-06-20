@@ -77,44 +77,63 @@ public final class NfaCompiler {
         if (part.getQuantifier() == ProductionPart.Quantifier.ONE) {
             compileSymbol(part.getSymbolType(), part, from, to);
         } else if (part.getQuantifier() == ProductionPart.Quantifier.OPTIONAL) {
-            add(NfaTransition.epsilon(from, to));
-            compileSymbol(part.getSymbolType(), part, from, to);
+            compileOptionalPart(part, from, to);
         } else if (part.getQuantifier() == ProductionPart.Quantifier.ZERO_OR_MORE) {
-            add(NfaTransition.epsilon(from, to));
-            compileRepeatingSymbol(part, from, to);
+            compilePlainRepeatedPart(part, from, to, true);
         } else if (part.getQuantifier() == ProductionPart.Quantifier.ONE_OR_MORE) {
-            compileRepeatingSymbol(part, from, to);
+            compilePlainRepeatedPart(part, from, to, false);
         }
     }
 
-    private void compileRepeatingSymbol(ProductionPart part, NfaState from, NfaState to) {
+    private void compileOptionalPart(ProductionPart part, NfaState from, NfaState to) {
+        NfaState optionalStart = newState();
+        add(NfaTransition.beginOptional(from, optionalStart, part));
+        add(NfaTransition.endOptionalAbsent(optionalStart, to, part));
+
+        NfaState presentEnd = newState();
+        compileSymbol(part.getSymbolType(), part, optionalStart, presentEnd);
+        add(NfaTransition.endOptionalPresent(presentEnd, to, part));
+    }
+
+    private void compilePlainRepeatedPart(ProductionPart part, NfaState from, NfaState to, boolean allowEmpty) {
+        NfaState repeatStart = newState();
+        add(NfaTransition.beginRepeat(from, repeatStart, part));
+        if (allowEmpty) {
+            add(NfaTransition.endRepeat(repeatStart, to, part));
+        }
+
         NfaState itemEnd = newState();
-        compileSymbol(part.getSymbolType(), part, from, itemEnd);
-        add(NfaTransition.epsilon(itemEnd, from));
-        add(NfaTransition.epsilon(itemEnd, to));
+        compileSymbol(part.getSymbolType(), part, repeatStart, itemEnd);
+
+        NfaState afterAppend = newState();
+        add(NfaTransition.appendRepeatElement(itemEnd, afterAppend, part));
+        add(NfaTransition.epsilon(afterAppend, repeatStart));
+        add(NfaTransition.endRepeat(afterAppend, to, part));
     }
 
     private void compileSeparatedPart(ProductionPart part, NfaState from, NfaState to) {
+        NfaState repeatStart = newState();
+        add(NfaTransition.beginRepeat(from, repeatStart, part));
         if (part.getQuantifier() == ProductionPart.Quantifier.ZERO_OR_MORE) {
-            add(NfaTransition.epsilon(from, to));
+            add(NfaTransition.endRepeat(repeatStart, to, part));
         }
-        compileSeparatedNonEmpty(part, from, to);
-    }
 
-    private void compileSeparatedNonEmpty(ProductionPart part, NfaState from, NfaState to) {
         NfaState afterItem = newState();
-        compileSymbol(part.getSymbolType(), part, from, afterItem);
-        add(NfaTransition.epsilon(afterItem, to));
+        compileSymbol(part.getSymbolType(), part, repeatStart, afterItem);
+
+        NfaState afterAppend = newState();
+        add(NfaTransition.appendRepeatElement(afterItem, afterAppend, part));
+        add(NfaTransition.endRepeat(afterAppend, to, part));
 
         NfaState afterSeparator = newState();
-        compileSymbol(part.getSeparatorType(), part, afterItem, afterSeparator);
+        compileSymbol(part.getSeparatorType(), part, afterAppend, afterSeparator);
         if (part.isTrailingSeparator()) {
-            add(NfaTransition.epsilon(afterSeparator, to));
+            add(NfaTransition.endRepeat(afterSeparator, to, part));
         }
 
         NfaState afterNextItem = newState();
         compileSymbol(part.getSymbolType(), part, afterSeparator, afterNextItem);
-        add(NfaTransition.epsilon(afterNextItem, afterItem));
+        add(NfaTransition.appendRepeatElement(afterNextItem, afterAppend, part));
     }
 
     private void compileSymbol(Class<?> symbolType, ProductionPart part, NfaState from, NfaState to) {

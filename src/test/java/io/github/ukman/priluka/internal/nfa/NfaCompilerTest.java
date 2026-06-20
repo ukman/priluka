@@ -29,7 +29,9 @@ class NfaCompilerTest {
         NfaGraph graph = compile(SignedNumber.class);
 
         assertEquals(2, count(graph, NfaTransition.Kind.TERMINAL));
-        assertTrue(count(graph, NfaTransition.Kind.EPSILON) >= 1);
+        assertEquals(1, count(graph, NfaTransition.Kind.BEGIN_OPTIONAL));
+        assertEquals(1, count(graph, NfaTransition.Kind.END_OPTIONAL_PRESENT));
+        assertEquals(1, count(graph, NfaTransition.Kind.END_OPTIONAL_ABSENT));
         assertEquals(1, countTerminal(graph, Minus.class));
         assertEquals(1, countTerminal(graph, Integer.class));
     }
@@ -38,7 +40,9 @@ class NfaCompilerTest {
     void compilesSeparatedRepetitionWithSeparatorTerminal() {
         NfaGraph graph = compile(NumberArray.class);
 
-        assertTrue(count(graph, NfaTransition.Kind.EPSILON) >= 3);
+        assertEquals(1, count(graph, NfaTransition.Kind.BEGIN_REPEAT));
+        assertEquals(2, count(graph, NfaTransition.Kind.END_REPEAT));
+        assertEquals(2, count(graph, NfaTransition.Kind.APPEND_REPEAT_ELEMENT));
         assertEquals(2, countTerminal(graph, Integer.class));
         assertEquals(1, countTerminal(graph, Comma.class));
     }

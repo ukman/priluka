@@ -1,5 +1,7 @@
 package io.github.ukman.priluka.internal.nfa;
 
+import io.github.ukman.priluka.ParseTrace;
+import io.github.ukman.priluka.ParseTraceEvent;
 import io.github.ukman.priluka.grammar.GrammarModel;
 import io.github.ukman.priluka.grammar.TerminalSymbol;
 import io.github.ukman.priluka.internal.lexer.Lexeme;
@@ -39,58 +41,126 @@ public final class NfaRecognizer {
     }
 
     public boolean recognizes(String input) {
-        try {
-            return recognizes(lexer.tokenize(input));
-        } catch (LexerException e) {
-            return false;
-        }
+        return parseTrace(input) != null;
     }
 
     public boolean recognizes(List<Lexeme> lexemes) {
-        Set<NfaState> active = epsilonClosure(singleton(graph.getStart()));
+        return parseTrace(lexemes) != null;
+    }
+
+    public ParseTrace parseTrace(String input) {
+        try {
+            return parseTrace(lexer.tokenize(input));
+        } catch (LexerException e) {
+            return null;
+        }
+    }
+
+    public ParseTrace parseTrace(List<Lexeme> lexemes) {
+        List<Configuration> active = epsilonClosure(singleton(new Configuration(graph.getStart())));
         for (Lexeme lexeme : lexemes) {
-            Set<NfaState> next = new LinkedHashSet<NfaState>();
-            for (NfaState state : active) {
-                List<NfaTransition> transitions = outgoing.get(state);
+            List<Configuration> next = new ArrayList<Configuration>();
+            for (Configuration configuration : active) {
+                List<NfaTransition> transitions = outgoing.get(configuration.state);
                 for (NfaTransition transition : transitions) {
                     if (
                         transition.getKind() == NfaTransition.Kind.TERMINAL
                             && lexeme.hasTerminal(transition.getSymbolType())
                     ) {
-                        next.add(transition.getTo());
+                        next.add(configuration.advance(transition, lexeme));
                     }
                 }
             }
             if (next.isEmpty()) {
-                return false;
+                return null;
             }
             active = epsilonClosure(next);
         }
-        return active.contains(graph.getAccept());
+        for (Configuration configuration : active) {
+            if (configuration.state.equals(graph.getAccept())) {
+                return new ParseTrace(traceEvents(configuration.steps));
+            }
+        }
+        return null;
     }
 
-    private Set<NfaState> epsilonClosure(Set<NfaState> seed) {
-        Set<NfaState> closed = new LinkedHashSet<NfaState>(seed);
-        Deque<NfaState> queue = new ArrayDeque<NfaState>(seed);
+    private List<Configuration> epsilonClosure(List<Configuration> seed) {
+        List<Configuration> closed = new ArrayList<Configuration>(seed);
+        Set<NfaState> closedStates = new LinkedHashSet<NfaState>();
+        Deque<Configuration> queue = new ArrayDeque<Configuration>(seed);
+        for (Configuration configuration : seed) {
+            closedStates.add(configuration.state);
+        }
         while (!queue.isEmpty()) {
-            NfaState state = queue.removeFirst();
-            List<NfaTransition> transitions = outgoing.get(state);
+            Configuration configuration = queue.removeFirst();
+            List<NfaTransition> transitions = outgoing.get(configuration.state);
             for (NfaTransition transition : transitions) {
                 if (transition.getKind() == NfaTransition.Kind.TERMINAL) {
                     continue;
                 }
-                if (closed.add(transition.getTo())) {
-                    queue.addLast(transition.getTo());
+                if (closedStates.add(transition.getTo())) {
+                    Configuration next = configuration.advance(transition, null);
+                    closed.add(next);
+                    queue.addLast(next);
                 }
             }
         }
         return closed;
     }
 
-    private Set<NfaState> singleton(NfaState state) {
-        Set<NfaState> result = new LinkedHashSet<NfaState>();
-        result.add(state);
+    private List<Configuration> singleton(Configuration configuration) {
+        List<Configuration> result = new ArrayList<Configuration>();
+        result.add(configuration);
         return result;
+    }
+
+    private List<ParseTraceEvent> traceEvents(List<TraceStep> steps) {
+        List<ParseTraceEvent> events = new ArrayList<ParseTraceEvent>();
+        Deque<RepeatContext> repeats = new ArrayDeque<RepeatContext>();
+        for (TraceStep step : steps) {
+            NfaTransition transition = step.transition;
+            switch (transition.getKind()) {
+                case BEGIN_PRODUCTION:
+                    events.add(ParseTraceEvent.beginProduction(transition.getProduction()));
+                    break;
+                case END_PRODUCTION:
+                    events.add(ParseTraceEvent.endProduction(transition.getProduction()));
+                    break;
+                case TERMINAL:
+                    events.add(ParseTraceEvent.consumeTerminal(
+                        transition.getSymbolType(),
+                        step.lexeme.getText(),
+                        step.lexeme.getStart(),
+                        step.lexeme.getLen()
+                    ));
+                    break;
+                case BEGIN_REPEAT:
+                    repeats.push(new RepeatContext(transition.getPart().getSymbolName()));
+                    events.add(ParseTraceEvent.beginRepeat(transition.getPart().getSymbolName()));
+                    break;
+                case APPEND_REPEAT_ELEMENT:
+                    repeats.peek().count++;
+                    events.add(ParseTraceEvent.appendRepeatElement(transition.getPart().getSymbolName()));
+                    break;
+                case END_REPEAT:
+                    events.add(ParseTraceEvent.endRepeat(transition.getPart().getSymbolName(), repeats.pop().count));
+                    break;
+                case BEGIN_OPTIONAL:
+                    events.add(ParseTraceEvent.beginOptional(transition.getPart().getSymbolName()));
+                    break;
+                case END_OPTIONAL_PRESENT:
+                    events.add(ParseTraceEvent.endOptional(transition.getPart().getSymbolName(), true));
+                    break;
+                case END_OPTIONAL_ABSENT:
+                    events.add(ParseTraceEvent.endOptional(transition.getPart().getSymbolName(), false));
+                    break;
+                case EPSILON:
+                    break;
+                default:
+                    throw new IllegalStateException("Unsupported NFA transition kind: " + transition.getKind());
+            }
+        }
+        return events;
     }
 
     private static Lexer lexerFor(GrammarModel model) {
@@ -104,5 +174,44 @@ public final class NfaRecognizer {
     }
 
     private static final class ImplicitWhitespace {
+    }
+
+    private static final class Configuration {
+        private final NfaState state;
+        private final List<TraceStep> steps;
+
+        private Configuration(NfaState state) {
+            this(state, new ArrayList<TraceStep>());
+        }
+
+        private Configuration(NfaState state, List<TraceStep> steps) {
+            this.state = state;
+            this.steps = steps;
+        }
+
+        private Configuration advance(NfaTransition transition, Lexeme lexeme) {
+            List<TraceStep> nextSteps = new ArrayList<TraceStep>(steps);
+            nextSteps.add(new TraceStep(transition, lexeme));
+            return new Configuration(transition.getTo(), nextSteps);
+        }
+    }
+
+    private static final class TraceStep {
+        private final NfaTransition transition;
+        private final Lexeme lexeme;
+
+        private TraceStep(NfaTransition transition, Lexeme lexeme) {
+            this.transition = transition;
+            this.lexeme = lexeme;
+        }
+    }
+
+    private static final class RepeatContext {
+        private final String symbolName;
+        private int count;
+
+        private RepeatContext(String symbolName) {
+            this.symbolName = symbolName;
+        }
     }
 }
