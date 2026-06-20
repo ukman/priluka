@@ -1308,6 +1308,7 @@ select t.name, t.firstname, p.*
 from table
 from db.table
 from table1 t1 left join table2 t2 on t1.id=t2.id
+from table1 t1 left join table2 t2 on t1.id=t2.id left join table3 t3 on t2.id=t3.id
 ```
 
 Run only the simplified SQL dump with:

@@ -194,7 +194,10 @@ class ParserPerformanceTest {
             index++;
         }
         return "select " + selectList
-            + " from table1 t1 left join table2 t2 on t1.id=t2.id";
+            + " from table1 t1"
+            + " left join table2 t2 on t1.id=t2.id"
+            + " left join table3 t3 on t2.id=t3.id"
+            + " left join table4 t4 on t3.id=t4.id";
     }
 
     private static final class EngineRun {

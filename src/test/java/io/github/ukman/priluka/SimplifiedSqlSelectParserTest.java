@@ -48,6 +48,14 @@ class SimplifiedSqlSelectParserTest {
         );
     }
 
+    @Test
+    void parsesMultipleLeftJoins() {
+        assertSql(
+            "select t1.name, t2.firstname from table1 t1 left join table2 t2 on t1.id=t2.id left join table3 t3 on t2.id=t3.id",
+            "select t1.name, t2.firstname from table1 t1 left join table2 t2 on t1.id = t2.id left join table3 t3 on t2.id = t3.id"
+        );
+    }
+
     private void assertSql(String input, String expected) {
         SimpleSqlGrammar.SelectStatement statement = Parser
             .initFromOuterClass(SimpleSqlGrammar.class)
@@ -61,22 +69,22 @@ class SimplifiedSqlSelectParserTest {
             final Select select;
             final SelectItem[] selectItems;
             final From from;
-            final TableReference table;
+            final FromClause fromClause;
 
             SelectStatement(
                 Select select,
                 @OneOrMore @Separator(Comma.class) SelectItem[] selectItems,
                 From from,
-                TableReference table
+                FromClause fromClause
             ) {
                 this.select = select;
                 this.selectItems = selectItems;
                 this.from = from;
-                this.table = table;
+                this.fromClause = fromClause;
             }
 
             String sql() {
-                return "select " + join(selectItems) + " from " + table.sql();
+                return "select " + join(selectItems) + " from " + fromClause.sql();
             }
         }
 
@@ -127,15 +135,31 @@ class SimplifiedSqlSelectParserTest {
             }
         }
 
-        static class TableReference {
+        static class FromClause {
+            final TableDef tableDef;
+            final JoinClause[] joins;
+
+            FromClause(TableDef tableDef, JoinClause[] joins) {
+                this.tableDef = tableDef;
+                this.joins = joins;
+            }
+
+            String sql() {
+                StringBuilder result = new StringBuilder(tableDef.sql());
+                for (int i = 0; i < joins.length; i++) {
+                    result.append(joins[i].sql());
+                }
+                return result.toString();
+            }
+        }
+
+        static class TableDef {
             final QualifiedName name;
             final Optional<Id> alias;
-            final Optional<LeftJoinClause> join;
 
-            TableReference(QualifiedName name, Optional<Id> alias, Optional<LeftJoinClause> join) {
+            TableDef(QualifiedName name, Optional<Id> alias) {
                 this.name = name;
                 this.alias = alias;
-                this.join = join;
             }
 
             String sql() {
@@ -143,28 +167,23 @@ class SimplifiedSqlSelectParserTest {
                 if (alias.isPresent()) {
                     result += " " + alias.get().sql();
                 }
-                if (join.isPresent()) {
-                    result += join.get().sql();
-                }
                 return result;
             }
         }
 
-        static class LeftJoinClause {
+        static class JoinClause {
             final Left left;
             final Join join;
-            final QualifiedName table;
-            final Id alias;
+            final TableDef tableDef;
             final On on;
             final QualifiedName leftName;
             final Equals equals;
             final QualifiedName rightName;
 
-            LeftJoinClause(
+            JoinClause(
                 Left left,
                 Join join,
-                QualifiedName table,
-                Id alias,
+                TableDef tableDef,
                 On on,
                 QualifiedName leftName,
                 Equals equals,
@@ -172,8 +191,7 @@ class SimplifiedSqlSelectParserTest {
             ) {
                 this.left = left;
                 this.join = join;
-                this.table = table;
-                this.alias = alias;
+                this.tableDef = tableDef;
                 this.on = on;
                 this.leftName = leftName;
                 this.equals = equals;
@@ -181,8 +199,7 @@ class SimplifiedSqlSelectParserTest {
             }
 
             String sql() {
-                return " left join " + table.sql()
-                    + " " + alias.sql()
+                return " left join " + tableDef.sql()
                     + " on " + leftName.sql()
                     + " = " + rightName.sql();
             }
