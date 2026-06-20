@@ -1201,6 +1201,20 @@ It parses expressions such as:
 10 + 2 * ( 8 - 3 )
 ```
 
+Manual arithmetic expression parser benchmark:
+
+```bash
+mvn -Dpriluka.perf=true \
+    -Dtest=ArithmeticExpressionPerformanceTest \
+    -Dpriluka.arithmetic.bytes=1024,5120,10240,20480 \
+    -Dpriluka.perf.warmup=1 \
+    -Dpriluka.perf.runs=3 \
+    test
+```
+
+The benchmark generates a long expression from repeated parenthesized blocks
+such as `((1*2-3/4)*(5-4)/2)`, joined by arithmetic operators.
+
 It also includes a small SQL `select` grammar that exercises keyword/identifier
 ambiguity and backtracking conflicts:
 
