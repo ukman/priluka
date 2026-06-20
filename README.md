@@ -1428,10 +1428,10 @@ List<ParseTraceEvent> events = trace.getEvents();
 Point rebuilt = Parser.buildFromTrace(Point.class, trace);
 ```
 
-`Parser.trace(...)` returns a value rebuilt from the emitted trace. The current
-reflective parser still keeps temporary semantic values internally while
-searching, but the public trace path now follows the same recognition-then-build
-shape expected from the future NFA engine.
+`Parser.trace(...)` returns a value rebuilt from the emitted trace. The
+reflective parser recognition path emits trace events without invoking grammar
+constructors; object construction is handled by replaying the trace through the
+same builder shape expected from the future NFA engine.
 
 The NFA engine will need the same idea internally.
 

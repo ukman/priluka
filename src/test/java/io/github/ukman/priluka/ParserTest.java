@@ -68,14 +68,14 @@ class ParserTest {
     }
 
     @Test
-    void traceResultValueIsRebuiltFromTrace() {
+    void traceResultValueIsBuiltOnlyFromTraceReplay() {
         TraceBuiltPoint.constructorCalls = 0;
 
         ParseTraceResult<TraceBuiltPoint> result = Parser.trace(TraceBuiltPoint.class, "1 2");
 
         assertEquals(Integer.valueOf(1), result.getValue().x);
         assertEquals(Integer.valueOf(2), result.getValue().y);
-        assertEquals(2, TraceBuiltPoint.constructorCalls);
+        assertEquals(1, TraceBuiltPoint.constructorCalls);
     }
 
     @Test
