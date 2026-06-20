@@ -25,6 +25,7 @@ public final class NfaRecognizer {
     private final NfaGraph graph;
     private final Lexer lexer;
     private final Map<NfaState, List<NfaTransition>> outgoing = new LinkedHashMap<NfaState, List<NfaTransition>>();
+    private final Set<Class<?>> startTerminalTypes = new LinkedHashSet<Class<?>>();
 
     public NfaRecognizer(GrammarModel model) {
         this(new NfaCompiler(model).compile(), lexerFor(model));
@@ -43,6 +44,7 @@ public final class NfaRecognizer {
         for (NfaTransition transition : graph.getTransitions()) {
             outgoing.get(transition.getFrom()).add(transition);
         }
+        startTerminalTypes.addAll(collectStartTerminalTypes());
     }
 
     public boolean recognizes(String input) {
@@ -139,7 +141,9 @@ public final class NfaRecognizer {
         FindSpan best = null;
         for (int i = startTokenIndex; i < lexemes.size(); i++) {
             Lexeme lexeme = lexemes.get(i);
-            active.addAll(epsilonClosure(singleton(new Configuration(graph.getStart(), lexeme.getStart(), i)), false));
+            if (canStartAt(lexeme)) {
+                active.addAll(epsilonClosure(singleton(new Configuration(graph.getStart(), lexeme.getStart(), i)), false));
+            }
 
             List<Configuration> next = new ArrayList<Configuration>();
             for (Configuration configuration : active) {
@@ -161,6 +165,29 @@ public final class NfaRecognizer {
             }
         }
         return best;
+    }
+
+    private boolean canStartAt(Lexeme lexeme) {
+        for (Class<?> type : startTerminalTypes) {
+            if (lexeme.hasTerminal(type)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private Set<Class<?>> collectStartTerminalTypes() {
+        Set<Class<?>> result = new LinkedHashSet<Class<?>>();
+        List<Configuration> startConfigurations = epsilonClosure(singleton(new Configuration(graph.getStart())), false);
+        for (Configuration configuration : startConfigurations) {
+            List<NfaTransition> transitions = outgoing.get(configuration.state);
+            for (NfaTransition transition : transitions) {
+                if (transition.getKind() == NfaTransition.Kind.TERMINAL) {
+                    result.add(transition.getSymbolType());
+                }
+            }
+        }
+        return result;
     }
 
     private int firstTokenAtOrAfter(List<Lexeme> lexemes, int offset) {
