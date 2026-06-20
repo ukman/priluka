@@ -129,6 +129,11 @@ The benchmark also reports scan-only mode, which counts tokens without creating
 `Lexeme` objects or storing token lists. This estimates the potential win from a
 streaming/cursor lexer or more careful allocation strategy.
 
+The lexer uses `Matcher.find()` plus an explicit gap check
+(`matcher.start() == currentPosition`) instead of resetting `region(...)` and
+calling `lookingAt()` at every token boundary. This keeps error detection for
+unmatched input while allowing the regex engine to scan more efficiently.
+
 Manual Java regex engine baseline:
 
 ```bash

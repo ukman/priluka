@@ -35,9 +35,8 @@ public final class Lexer {
         List<Lexeme> lexemes = new ArrayList<Lexeme>();
         Matcher matcher = masterPattern.getPattern().matcher(input);
         int position = 0;
-        while (position < input.length()) {
-            matcher.region(position, input.length());
-            if (!matcher.lookingAt()) {
+        while (matcher.find()) {
+            if (matcher.start() != position) {
                 throw new LexerException("Unexpected input at offset " + position + ": " + input.charAt(position));
             }
 
@@ -59,6 +58,9 @@ public final class Lexer {
             }
             position += text.length();
         }
+        if (position != input.length()) {
+            throw new LexerException("Unexpected input at offset " + position + ": " + input.charAt(position));
+        }
         return lexemes;
     }
 
@@ -66,9 +68,8 @@ public final class Lexer {
         Matcher matcher = masterPattern.getPattern().matcher(input);
         int position = 0;
         int tokenCount = 0;
-        while (position < input.length()) {
-            matcher.region(position, input.length());
-            if (!matcher.lookingAt()) {
+        while (matcher.find()) {
+            if (matcher.start() != position) {
                 throw new LexerException("Unexpected input at offset " + position + ": " + input.charAt(position));
             }
 
@@ -86,6 +87,9 @@ public final class Lexer {
                 tokenCount++;
             }
             position = end;
+        }
+        if (position != input.length()) {
+            throw new LexerException("Unexpected input at offset " + position + ": " + input.charAt(position));
         }
         return tokenCount;
     }
