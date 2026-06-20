@@ -58,6 +58,16 @@ class ParserTest {
     }
 
     @Test
+    void rebuildsObjectFromParseTrace() {
+        ParseTraceResult<Point> result = Parser.trace(Point.class, "456 78");
+
+        Point rebuilt = Parser.buildFromTrace(Point.class, result.getTrace());
+
+        assertEquals(Integer.valueOf(456), rebuilt.x);
+        assertEquals(Integer.valueOf(78), rebuilt.y);
+    }
+
+    @Test
     void parsesInterfaceAlternativeFromInitializedUniverse() {
         Expression expression = Parser
             .init(Expression.class, NumberExpression.class)

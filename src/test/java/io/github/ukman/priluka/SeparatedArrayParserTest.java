@@ -117,6 +117,27 @@ class SeparatedArrayParserTest {
         assertEquals(true, hasTerminal(events, Comma.class, ",", 1, 1));
     }
 
+    @Test
+    void rebuildsSeparatedListFromTrace() {
+        Parser.InitializedParser parser = Parser.init(ListNumberCollection.class, Comma.class);
+        ParseTraceResult<ListNumberCollection> result = parser.trace(ListNumberCollection.class, "3,4");
+
+        ListNumberCollection rebuilt = parser.buildFromTrace(ListNumberCollection.class, result.getTrace());
+
+        assertEquals(Arrays.asList(3, 4), rebuilt.values);
+    }
+
+    @Test
+    void rebuildsOptionalValueFromTrace() {
+        Parser.InitializedParser parser = Parser.init(SignedNumber.class, Minus.class);
+        ParseTraceResult<SignedNumber> result = parser.trace(SignedNumber.class, "- 5");
+
+        SignedNumber rebuilt = parser.buildFromTrace(SignedNumber.class, result.getTrace());
+
+        assertEquals(Integer.valueOf(5), rebuilt.value);
+        assertEquals(true, rebuilt.minus.isPresent());
+    }
+
     static class ListNumbers {
         final Integer[] values;
 

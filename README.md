@@ -78,6 +78,7 @@ Implemented:
 - runtime `Token`, `GrammarException`, and `ParseException`
 - `Parser.describe(...)`
 - `Parser.trace(...)`
+- `Parser.buildFromTrace(...)`
 - `Parser.init(classes).describe(...)`
 - `Parser.initFromOuterClass(...).describe(...)`
 - compact `GrammarModel`
@@ -101,6 +102,7 @@ Implemented:
 - manual lexer performance baseline test
 - real `Parser.parse(...)` v1 through a reflective backtracking parser
 - typed parse trace events through `Parser.trace(...)`
+- object reconstruction from parse trace through `Parser.buildFromTrace(...)`
 - object construction for constructor productions with single parts
 - built-in terminal conversion for `Integer`, `Double`, and `Boolean`
 - enum terminal conversion to enum constants
@@ -1422,6 +1424,8 @@ ParseTraceResult<Point> result = Parser.trace(Point.class, "456 78");
 Point point = result.getValue();
 ParseTrace trace = result.getTrace();
 List<ParseTraceEvent> events = trace.getEvents();
+
+Point rebuilt = Parser.buildFromTrace(Point.class, trace);
 ```
 
 The NFA engine will need the same idea internally.

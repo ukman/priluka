@@ -3,6 +3,7 @@ package io.github.ukman.priluka;
 import io.github.ukman.priluka.grammar.GrammarModel;
 import io.github.ukman.priluka.internal.GrammarModelBuilder;
 import io.github.ukman.priluka.internal.parser.ReflectiveParser;
+import io.github.ukman.priluka.internal.parser.TraceObjectBuilder;
 
 /**
  * Main Priluka entry point.
@@ -27,6 +28,10 @@ public final class Parser {
         return init(start).trace(start, input);
     }
 
+    public static <S> S buildFromTrace(Class<S> start, ParseTrace trace) {
+        return new TraceObjectBuilder().build(start, trace);
+    }
+
     public static GrammarModel describe(Class<?> start) {
         return init(start).describe(start);
     }
@@ -46,6 +51,10 @@ public final class Parser {
         public <S> ParseTraceResult<S> trace(Class<S> start, String input) {
             GrammarModel model = describe(start);
             return new ReflectiveParser(model).parseWithTrace(start, input);
+        }
+
+        public <S> S buildFromTrace(Class<S> start, ParseTrace trace) {
+            return new TraceObjectBuilder().build(start, trace);
         }
 
         public GrammarModel describe(Class<?> start) {
