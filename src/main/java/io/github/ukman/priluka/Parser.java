@@ -63,6 +63,8 @@ public final class Parser {
         private final List<Class<?>> skipTerminalTypes = new ArrayList<Class<?>>();
         private LexerEngine lexerEngine = LexerEngine.DEFAULT;
         private boolean regexpCaseSensitive = true;
+        private boolean collectAmbiguousTerminalTypes = true;
+        private boolean keywordCarrierOptimization = true;
 
         private Builder() {
         }
@@ -72,6 +74,10 @@ public final class Parser {
                 this.classes.add(classes[i]);
             }
             return this;
+        }
+
+        public Builder classesFromOuterClass(Class<?> outerClass) {
+            return classes(outerClass.getDeclaredClasses());
         }
 
         public Builder terminals(Class<?>... terminalTypes) {
@@ -103,6 +109,26 @@ public final class Parser {
             return this;
         }
 
+        public Builder collectAmbiguousTerminals() {
+            this.collectAmbiguousTerminalTypes = true;
+            return this;
+        }
+
+        public Builder singleTerminal() {
+            this.collectAmbiguousTerminalTypes = false;
+            return this;
+        }
+
+        public Builder keywordCarrierOptimization() {
+            this.keywordCarrierOptimization = true;
+            return this;
+        }
+
+        public Builder disableKeywordCarrierOptimization() {
+            this.keywordCarrierOptimization = false;
+            return this;
+        }
+
         public InitializedParser build() {
             return new InitializedParser(
                 classes.toArray(new Class<?>[classes.size()]),
@@ -110,7 +136,9 @@ public final class Parser {
                     lexerTerminalTypes.toArray(new Class<?>[lexerTerminalTypes.size()]),
                     skipTerminalTypes.toArray(new Class<?>[skipTerminalTypes.size()]),
                     lexerEngine,
-                    regexpCaseSensitive
+                    regexpCaseSensitive,
+                    collectAmbiguousTerminalTypes,
+                    keywordCarrierOptimization
                 )
             );
         }

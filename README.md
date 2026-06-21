@@ -1672,10 +1672,13 @@ them to a single find call:
 Parser parser = Parser
     .builder()
     .classes(SentencePerfect.class, Pronoun.class, HaveHas.class, Verb3Form.class)
+    // or .classesFromOuterClass(MyGrammar.class)
     .terminals(Word.class)
     .skip(Space.class, Comment.class)
     .caseSensitive()
     .engine(LexerEngine.BRICS)
+    .collectAmbiguousTerminals()
+    .keywordCarrierOptimization()
     .build();
 
 ParseFindResult<SentencePerfect> first = parser.find(SentencePerfect.class, text);
@@ -1686,6 +1689,10 @@ List<ParseFindResult<SentencePerfect>> all = parser.findAll(SentencePerfect.clas
 when regular-expression terminals should be matched without regard to case.
 Keyword terminals still keep their own `@Keyword(caseSensitive = ...)` or
 `@Keywords(caseSensitive = ...)` contract.
+Use `singleTerminal()` to keep only the selected lexer branch for each token
+when ambiguity collection is unnecessary, and `disableKeywordCarrierOptimization()`
+to force keywords into the master lexer pattern instead of attaching them to a
+carrier terminal such as `Word`.
 
 This first find mode is still token-stream based: the lexer must be able to
 tokenize the searched text using the grammar's terminals and skip terminals.

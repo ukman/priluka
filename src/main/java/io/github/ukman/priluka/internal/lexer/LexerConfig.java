@@ -15,6 +15,8 @@ public final class LexerConfig {
         new Class<?>[0],
         new Class<?>[0],
         LexerEngine.DEFAULT,
+        true,
+        true,
         true
     );
 
@@ -22,21 +24,27 @@ public final class LexerConfig {
     private final Class<?>[] skipTerminalTypes;
     private final LexerEngine engine;
     private final boolean regexpCaseSensitive;
+    private final boolean collectAmbiguousTerminalTypes;
+    private final boolean keywordCarrierOptimization;
 
     public LexerConfig(
         Class<?>[] terminalTypes,
         Class<?>[] skipTerminalTypes,
         LexerEngine engine,
-        boolean regexpCaseSensitive
+        boolean regexpCaseSensitive,
+        boolean collectAmbiguousTerminalTypes,
+        boolean keywordCarrierOptimization
     ) {
         this.terminalTypes = terminalTypes.clone();
         this.skipTerminalTypes = skipTerminalTypes.clone();
         this.engine = engine;
         this.regexpCaseSensitive = regexpCaseSensitive;
+        this.collectAmbiguousTerminalTypes = collectAmbiguousTerminalTypes;
+        this.keywordCarrierOptimization = keywordCarrierOptimization;
     }
 
     public static LexerConfig terminals(Class<?>... terminalTypes) {
-        return new LexerConfig(terminalTypes, new Class<?>[0], LexerEngine.DEFAULT, true);
+        return new LexerConfig(terminalTypes, new Class<?>[0], LexerEngine.DEFAULT, true, true, true);
     }
 
     public Lexer createLexer(GrammarModel model) {
@@ -45,7 +53,11 @@ public final class LexerConfig {
 
     public Lexer createLexer(List<TerminalSymbol> terminals) {
         LexerSpec spec = new LexerSpec(terminalsWithImplicitWhitespace(terminals));
-        LexerOptions options = LexerOptions.DEFAULT.withRegexpCaseSensitive(regexpCaseSensitive);
+        LexerOptions options = new LexerOptions(
+            collectAmbiguousTerminalTypes,
+            keywordCarrierOptimization,
+            regexpCaseSensitive
+        );
         return Lexers.create(engine, spec, options);
     }
 
@@ -54,7 +66,9 @@ public final class LexerConfig {
             combine(terminalTypes, extraTerminalTypes),
             skipTerminalTypes,
             engine,
-            regexpCaseSensitive
+            regexpCaseSensitive,
+            collectAmbiguousTerminalTypes,
+            keywordCarrierOptimization
         );
     }
 

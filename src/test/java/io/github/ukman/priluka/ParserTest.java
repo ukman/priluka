@@ -130,6 +130,22 @@ class ParserTest {
     }
 
     @Test
+    void builderCanDisableKeywordCarrierOptimization() {
+        ParseFindResult<SmallPerfect> result = Parser
+            .builder()
+            .classes(SmallPerfect.class, SmallPronoun.class, SmallHaveHas.class, SmallVerb3.class)
+            .terminals(SmallWord.class)
+            .disableKeywordCarrierOptimization()
+            .build()
+            .find(SmallPerfect.class, "noise words i have started later");
+
+        assertEquals(12, result.getStart());
+        assertEquals(26, result.getEnd());
+        assertEquals(SmallPronoun.I, result.getValue().pronoun);
+        assertEquals(SmallVerb3.STARTED, result.getValue().verb);
+    }
+
+    @Test
     void builderConfiguresSkippedTerminals() {
         NumberWithComments value = Parser
             .builder()
@@ -237,6 +253,17 @@ class ParserTest {
         DeepGrammar.Start start = Parser
             .initFromOuterClass(DeepGrammar.class)
             .parse(DeepGrammar.Start.class, repeatedAThenZ(1500));
+
+        assertNotNull(start);
+    }
+
+    @Test
+    void builderCanLoadClassesFromOuterClass() {
+        DeepGrammar.Start start = Parser
+            .builder()
+            .classesFromOuterClass(DeepGrammar.class)
+            .build()
+            .parse(DeepGrammar.Start.class, repeatedAThenZ(5));
 
         assertNotNull(start);
     }
