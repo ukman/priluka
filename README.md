@@ -81,6 +81,7 @@ Implemented:
 - `Parser.buildFromTrace(...)`
 - `Parser.init(classes).describe(...)`
 - `Parser.initFromOuterClass(...).describe(...)`
+- `Parser.builder()...build()` for parser and lexer configuration
 - compact `GrammarModel`
 - BNF-like diagnostics through `GrammarModel.toBnf()`
 - LL-style prediction conflict diagnostics through
@@ -92,6 +93,7 @@ Implemented:
 - internal `NfaParseEngine` adapter for the shared parse-engine contract
 - automatic public parser fast-path selection for NFA-compatible grammars
 - NFA find mode through `Parser.find(...)` and internal `NfaRecognizer.find(...)`
+- public `Parser.findAll(...)` on initialized parser instances
 - reflection discovery for constructor productions
 - multiple constructors as alternatives
 - interface alternatives inside an explicit class universe
@@ -116,6 +118,9 @@ Implemented:
 - interface alternatives inside `Parser.init(...)` during parsing
 - abstract class alternatives inside `Parser.init(...)` during parsing
 - implicit whitespace skipping in parser v1
+- builder-configured extra lexer terminals and skip terminals
+- builder-configured lexer engine selection through `LexerEngine`
+- builder-configured regexp case mode, ambiguous terminal collection, and keyword carrier optimization
 - parsing for array parameters with repetition, `@OneOrMore`, and `@Separator`
 - parsing for `Optional<T>` and collection parameters with repetition
 
@@ -1668,6 +1673,20 @@ When the search lexer needs additional carrier terminals that are not part of
 the derivation itself, configure them on the parser instance instead of passing
 them to a single find call:
 
+### Parser Builder
+
+The compact static shortcuts remain useful:
+
+```java
+Point point = Parser.parse(Point.class, "456 78");
+
+Parser.InitializedParser parser = Parser.init(Expression.class, NumberExpression.class);
+Expression expression = parser.parse(Expression.class, "42");
+```
+
+For anything beyond the smallest grammar, prefer `Parser.builder()`. It is the
+single public place for parser and lexer configuration:
+
 ```java
 Parser parser = Parser
     .builder()
@@ -1685,14 +1704,47 @@ ParseFindResult<SentencePerfect> first = parser.find(SentencePerfect.class, text
 List<ParseFindResult<SentencePerfect>> all = parser.findAll(SentencePerfect.class, text);
 ```
 
-`caseSensitive()` is the default regexp-engine mode. Use `caseInsensitive()`
-when regular-expression terminals should be matched without regard to case.
-Keyword terminals still keep their own `@Keyword(caseSensitive = ...)` or
-`@Keywords(caseSensitive = ...)` contract.
-Use `singleTerminal()` to keep only the selected lexer branch for each token
-when ambiguity collection is unnecessary, and `disableKeywordCarrierOptimization()`
-to force keywords into the master lexer pattern instead of attaching them to a
-carrier terminal such as `Word`.
+Builder methods:
+
+- `classes(...)`: explicit grammar universe. Required for interface and
+  abstract-class alternatives.
+- `classesFromOuterClass(...)`: shorthand for grammars kept as nested classes
+  inside one outer grammar class.
+- `terminals(...)`: extra lexer terminals that may be needed to tokenize input
+  but are not consumed directly by the target derivation. A common example is
+  `Word` as a carrier terminal for keyword matching.
+- `skip(...)`: terminals recognized by the lexer and removed from the parser
+  token stream. This can mark a terminal as skipped even if the terminal class
+  does not have `@Skip`.
+- `caseSensitive()`: default regexp-engine mode. Regular-expression terminals
+  are matched as written.
+- `caseInsensitive()`: regular-expression terminals are matched without regard
+  to ASCII letter case. Keyword terminals still keep their own
+  `@Keyword(caseSensitive = ...)` or `@Keywords(caseSensitive = ...)` contract.
+- `engine(LexerEngine.DEFAULT)`: use the library default lexer engine. At the
+  moment this is the dk.brics based lexer.
+- `engine(LexerEngine.BRICS)`: force the dk.brics automaton lexer.
+- `engine(LexerEngine.JAVA_REGEX)`: force the `java.util.regex` master-pattern
+  lexer.
+- `collectAmbiguousTerminals()`: default mode. If one input span matches
+  multiple terminal types, keep all matching terminal types on the lexeme.
+- `singleTerminal()`: keep only the selected lexer branch for each token. This
+  is useful for strict or performance-oriented lexers where ambiguity is not
+  needed.
+- `keywordCarrierOptimization()`: default mode. Keywords covered by a carrier
+  regexp terminal such as `Word`/`Id` are attached through a map lookup instead
+  of being placed into the master lexer pattern.
+- `disableKeywordCarrierOptimization()`: force keywords into the master lexer
+  pattern.
+
+Default builder settings:
+
+```text
+engine(DEFAULT)
+caseSensitive()
+collectAmbiguousTerminals()
+keywordCarrierOptimization()
+```
 
 This first find mode is still token-stream based: the lexer must be able to
 tokenize the searched text using the grammar's terminals and skip terminals.
