@@ -7,8 +7,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 public final class AsciiTextLexer implements Lexer {
+    private final List<TerminalSymbol> wordCarriers = new ArrayList<TerminalSymbol>();
+    private final List<TerminalSymbol> numberCarriers = new ArrayList<TerminalSymbol>();
+    private final List<TerminalSymbol> symbolCarriers = new ArrayList<TerminalSymbol>();
     private final Map<String, List<TerminalSymbol>> exactKeywords =
         new LinkedHashMap<String, List<TerminalSymbol>>();
     private final Map<String, List<TerminalSymbol>> caseInsensitiveKeywords =
@@ -18,6 +22,8 @@ public final class AsciiTextLexer implements Lexer {
         for (TerminalSymbol terminal : spec.getTerminals()) {
             if (!terminal.getKeywordTexts().isEmpty()) {
                 addKeywordTerminal(terminal);
+            } else {
+                addCarrierTerminal(terminal);
             }
         }
     }
@@ -49,7 +55,7 @@ public final class AsciiTextLexer implements Lexer {
             }
 
             String text = input.substring(start, position);
-            lexemes.add(new Lexeme(start, position - start, text, terminalTypes(text), false));
+            lexemes.add(new Lexeme(start, position - start, text, terminalTypes(text, c), false));
         }
         return lexemes;
     }
@@ -97,19 +103,59 @@ public final class AsciiTextLexer implements Lexer {
         }
     }
 
-    private List<TerminalSymbol> terminalTypes(String text) {
+    private void addCarrierTerminal(TerminalSymbol terminal) {
+        if (terminal.getKind() != TerminalSymbol.Kind.REGEXP) {
+            return;
+        }
+
+        boolean word = matches(terminal, "abc") && !matches(terminal, "123") && !matches(terminal, "@");
+        boolean number = matches(terminal, "123") && !matches(terminal, "abc") && !matches(terminal, "@");
+        boolean symbol = matches(terminal, "@") && !matches(terminal, "abc") && !matches(terminal, "123");
+
+        if (word) {
+            wordCarriers.add(terminal);
+        }
+        if (number) {
+            numberCarriers.add(terminal);
+        }
+        if (symbol) {
+            symbolCarriers.add(terminal);
+        }
+    }
+
+    private boolean matches(TerminalSymbol terminal, String text) {
+        return Pattern.compile(terminal.getPattern()).matcher(text).matches();
+    }
+
+    private List<TerminalSymbol> terminalTypes(String text, char firstChar) {
         List<TerminalSymbol> terminalTypes = new ArrayList<TerminalSymbol>();
+        if (isAsciiLetter(firstChar)) {
+            terminalTypes.addAll(wordCarriers);
+        } else if (isAsciiDigit(firstChar)) {
+            terminalTypes.addAll(numberCarriers);
+        } else {
+            terminalTypes.addAll(symbolCarriers);
+        }
 
         List<TerminalSymbol> exact = exactKeywords.get(text);
         if (exact != null) {
-            terminalTypes.addAll(exact);
+            addAllAbsent(terminalTypes, exact);
         }
 
         List<TerminalSymbol> caseInsensitive = caseInsensitiveKeywords.get(normalize(text));
         if (caseInsensitive != null) {
-            terminalTypes.addAll(caseInsensitive);
+            addAllAbsent(terminalTypes, caseInsensitive);
         }
         return terminalTypes;
+    }
+
+    private void addAllAbsent(List<TerminalSymbol> terminalTypes, List<TerminalSymbol> additions) {
+        for (int i = 0; i < additions.size(); i++) {
+            TerminalSymbol terminal = additions.get(i);
+            if (!terminalTypes.contains(terminal)) {
+                terminalTypes.add(terminal);
+            }
+        }
     }
 
     private String normalize(String text) {

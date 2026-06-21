@@ -4,6 +4,8 @@ import io.github.ukman.priluka.grammar.GrammarModel;
 import io.github.ukman.priluka.grammar.NfaCompatibility;
 import io.github.ukman.priluka.internal.GrammarModelBuilder;
 import io.github.ukman.priluka.internal.lexer.LexerConfig;
+import io.github.ukman.priluka.internal.nfa.DfaFindRecognizer;
+import io.github.ukman.priluka.internal.nfa.NfaCompiler;
 import io.github.ukman.priluka.internal.nfa.NfaFindResult;
 import io.github.ukman.priluka.internal.nfa.NfaParseEngine;
 import io.github.ukman.priluka.internal.nfa.NfaRecognizer;
@@ -12,7 +14,9 @@ import io.github.ukman.priluka.internal.parser.ReflectiveParser;
 import io.github.ukman.priluka.internal.parser.TraceObjectBuilder;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Main Priluka entry point.
@@ -153,6 +157,9 @@ public final class Parser {
     public static final class InitializedParser {
         private final Class<?>[] classes;
         private final LexerConfig lexerConfig;
+        private final Map<Class<?>, GrammarModel> modelCache = new LinkedHashMap<Class<?>, GrammarModel>();
+        private final Map<Class<?>, NfaRecognizer> nfaFindCache = new LinkedHashMap<Class<?>, NfaRecognizer>();
+        private final Map<Class<?>, DfaFindRecognizer> dfaFindCache = new LinkedHashMap<Class<?>, DfaFindRecognizer>();
 
         private InitializedParser(Class<?>[] classes) {
             this(classes, LexerConfig.DEFAULT);
@@ -180,7 +187,7 @@ public final class Parser {
             if (!compatibility.isSupported()) {
                 throw new GrammarException(compatibility.toString());
             }
-            NfaFindResult result = new NfaRecognizer(model, lexerConfig).find(input);
+            NfaFindResult result = findWithConfiguredEngine(start, model, input);
             if (result == null) {
                 return null;
             }
@@ -197,7 +204,7 @@ public final class Parser {
             if (!compatibility.isSupported()) {
                 throw new GrammarException(compatibility.toString());
             }
-            List<NfaFindResult> nfaResults = new NfaRecognizer(model, lexerConfig).findAll(input);
+            List<NfaFindResult> nfaResults = findAllWithConfiguredEngine(start, model, input);
             List<ParseFindResult<S>> results = new ArrayList<ParseFindResult<S>>(nfaResults.size());
             for (NfaFindResult result : nfaResults) {
                 results.add(toFindResult(start, result));
@@ -214,7 +221,13 @@ public final class Parser {
         }
 
         public GrammarModel describe(Class<?> start) {
-            return new GrammarModelBuilder(classes).build(start);
+            GrammarModel cached = modelCache.get(start);
+            if (cached != null) {
+                return cached;
+            }
+            GrammarModel created = new GrammarModelBuilder(classes).build(start);
+            modelCache.put(start, created);
+            return created;
         }
 
         private ParseEngine parseEngine(GrammarModel model) {
@@ -222,6 +235,45 @@ public final class Parser {
                 return new NfaParseEngine(model, lexerConfig);
             }
             return new ReflectiveParser(model, lexerConfig);
+        }
+
+        private NfaFindResult findWithConfiguredEngine(Class<?> start, GrammarModel model, String input) {
+            if (isDfaFindEngine()) {
+                List<NfaFindResult> results = dfaFindRecognizer(start, model).findAll(input);
+                return results.isEmpty() ? null : results.get(0);
+            }
+            return nfaFindRecognizer(start, model).find(input);
+        }
+
+        private List<NfaFindResult> findAllWithConfiguredEngine(Class<?> start, GrammarModel model, String input) {
+            if (isDfaFindEngine()) {
+                return dfaFindRecognizer(start, model).findAll(input);
+            }
+            return nfaFindRecognizer(start, model).findAll(input);
+        }
+
+        private NfaRecognizer nfaFindRecognizer(Class<?> start, GrammarModel model) {
+            NfaRecognizer cached = nfaFindCache.get(start);
+            if (cached != null) {
+                return cached;
+            }
+            NfaRecognizer created = new NfaRecognizer(model, lexerConfig);
+            nfaFindCache.put(start, created);
+            return created;
+        }
+
+        private DfaFindRecognizer dfaFindRecognizer(Class<?> start, GrammarModel model) {
+            DfaFindRecognizer cached = dfaFindCache.get(start);
+            if (cached != null) {
+                return cached;
+            }
+            DfaFindRecognizer created = new DfaFindRecognizer(new NfaCompiler(model).compile(), lexerConfig.createLexer(model));
+            dfaFindCache.put(start, created);
+            return created;
+        }
+
+        private boolean isDfaFindEngine() {
+            return "dfa".equalsIgnoreCase(System.getProperty("priluka.findEngine", ""));
         }
 
         private InitializedParser withTerminals(Class<?>... lexerTerminalTypes) {
