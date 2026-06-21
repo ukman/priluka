@@ -269,6 +269,19 @@ throughput number. This is public `findAll(...)` throughput, so it includes
 lexing and trace/object reconstruction for accepted spans, not only pure DFA
 span scanning.
 
+For a more controlled JVM microbenchmark, the branch now adds JMH coverage for
+Money search:
+
+```bash
+./scripts/run-money-findall-dfa-jmh.sh
+```
+
+That benchmark uses a deterministic synthetic corpus with 10 MiB, 20 MiB, and
+100 MiB inputs, one money hit per 64 KiB segment, a single benchmark thread,
+and JMH warmup iterations separated from measured iterations. The trial setup
+also performs one priming `findAll(...)` call so DFA compilation is not mixed
+into the measured hot-path throughput.
+
 For a real-corpus reference point, deadline extraction on a 5 MiB golden tender subset found 16 matches and 12 distinct evidence strings, with scan-only speed around 0.37 MiB/s on that older general-purpose path.
 
 Scanning 20 MiB this way is effectively negligible compute on a single machine; sending the same volume through an LLM API would usually cost materially more and add minutes of latency.
