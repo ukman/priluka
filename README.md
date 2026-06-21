@@ -1696,6 +1696,7 @@ Parser parser = Parser
     .skip(Space.class, Comment.class)
     .caseSensitive()
     .engine(LexerEngine.BRICS)
+    .findEngine(FindEngine.DFA)
     .collectAmbiguousTerminals()
     .keywordCarrierOptimization()
     .build();
@@ -1726,6 +1727,12 @@ Builder methods:
 - `engine(LexerEngine.BRICS)`: force the dk.brics automaton lexer.
 - `engine(LexerEngine.JAVA_REGEX)`: force the `java.util.regex` master-pattern
   lexer.
+- `findEngine(FindEngine.NFA)`: default find engine. It simulates the compiled
+  token-level NFA and builds traces directly.
+- `findEngine(FindEngine.DFA)`: use the experimental DFA-backed find engine.
+  It finds matching spans with a lazy DFA and then reparses each span to build
+  the normal trace/object result.
+- `nfaFind()` / `dfaFind()`: shorthand for selecting the find engine.
 - `collectAmbiguousTerminals()`: default mode. If one input span matches
   multiple terminal types, keep all matching terminal types on the lexeme.
 - `singleTerminal()`: keep only the selected lexer branch for each token. This
@@ -1741,6 +1748,7 @@ Default builder settings:
 
 ```text
 engine(DEFAULT)
+findEngine(NFA)
 caseSensitive()
 collectAmbiguousTerminals()
 keywordCarrierOptimization()

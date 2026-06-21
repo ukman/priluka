@@ -69,6 +69,7 @@ public final class Parser {
         private final List<Class<?>> lexerTerminalTypes = new ArrayList<Class<?>>();
         private final List<Class<?>> skipTerminalTypes = new ArrayList<Class<?>>();
         private LexerEngine lexerEngine = LexerEngine.DEFAULT;
+        private FindEngine findEngine = FindEngine.NFA;
         private boolean regexpCaseSensitive = true;
         private boolean collectAmbiguousTerminalTypes = true;
         private boolean keywordCarrierOptimization = true;
@@ -116,6 +117,21 @@ public final class Parser {
             return this;
         }
 
+        public Builder findEngine(FindEngine engine) {
+            this.findEngine = engine;
+            return this;
+        }
+
+        public Builder nfaFind() {
+            this.findEngine = FindEngine.NFA;
+            return this;
+        }
+
+        public Builder dfaFind() {
+            this.findEngine = FindEngine.DFA;
+            return this;
+        }
+
         public Builder collectAmbiguousTerminals() {
             this.collectAmbiguousTerminalTypes = true;
             return this;
@@ -146,7 +162,8 @@ public final class Parser {
                     regexpCaseSensitive,
                     collectAmbiguousTerminalTypes,
                     keywordCarrierOptimization
-                )
+                ),
+                findEngine
             );
         }
     }
@@ -157,6 +174,7 @@ public final class Parser {
     public static final class InitializedParser {
         private final Class<?>[] classes;
         private final LexerConfig lexerConfig;
+        private final FindEngine findEngine;
         private final Map<Class<?>, GrammarModel> modelCache = new LinkedHashMap<Class<?>, GrammarModel>();
         private final Map<Class<?>, NfaRecognizer> nfaFindCache = new LinkedHashMap<Class<?>, NfaRecognizer>();
         private final Map<Class<?>, DfaFindRecognizer> dfaFindCache = new LinkedHashMap<Class<?>, DfaFindRecognizer>();
@@ -166,8 +184,13 @@ public final class Parser {
         }
 
         private InitializedParser(Class<?>[] classes, LexerConfig lexerConfig) {
+            this(classes, lexerConfig, FindEngine.NFA);
+        }
+
+        private InitializedParser(Class<?>[] classes, LexerConfig lexerConfig, FindEngine findEngine) {
             this.classes = classes.clone();
             this.lexerConfig = lexerConfig;
+            this.findEngine = findEngine;
         }
 
         public <S> S parse(Class<S> start, String input) {
@@ -273,11 +296,11 @@ public final class Parser {
         }
 
         private boolean isDfaFindEngine() {
-            return "dfa".equalsIgnoreCase(System.getProperty("priluka.findEngine", ""));
+            return findEngine == FindEngine.DFA;
         }
 
         private InitializedParser withTerminals(Class<?>... lexerTerminalTypes) {
-            return new InitializedParser(classes, lexerConfig.withAdditionalTerminals(lexerTerminalTypes));
+            return new InitializedParser(classes, lexerConfig.withAdditionalTerminals(lexerTerminalTypes), findEngine);
         }
 
         private <S> ParseFindResult<S> toFindResult(Class<S> start, NfaFindResult result) {
