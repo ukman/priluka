@@ -6,6 +6,8 @@ It is not trying to replace LLMs. It is trying to make them safer, cheaper, and 
 
 Pre-1.0 note: the API is still evolving, but the architecture and evidence pipeline are already stable enough to evaluate.
 
+**Who this is for:** Priluka is a JVM-native library. Grammars are plain Java classes, so it fits naturally into pipelines that already run on the JVM. If your stack is Python-first, you can still call Priluka as a subprocess or service, but grammar authoring itself is Java-only by design.
+
 ## The Problem
 
 Large document packages are expensive and fragile to process with an LLM directly.
@@ -112,6 +114,14 @@ The internal runtime has a few important pieces:
 - a token-level `find` engine that can run with NFA or DFA style search
 - typed parse traces for replay and provenance
 
+## How This Differs From Existing Rule Engines
+
+Priluka is not the first attempt at deterministic, rule-based extraction. GATE's JAPE, UIMA RUTA, and Stanford's TokensRegex all solve a related problem, and any of them may already fit your use case.
+
+The difference is where the rules live. JAPE, RUTA, and TokensRegex define rules as external script or DSL files, interpreted at runtime, usually outside your main codebase and its type system. Priluka grammars are ordinary Java classes: composable, type-checked at compile time, and able to produce typed objects directly instead of annotation spans you re-parse yourself afterward.
+
+That is a tradeoff, not a strict improvement. If you need non-developers to author or edit extraction rules without touching Java, a standalone DSL like RUTA or JAPE is the better fit. If your pipeline already lives in Java or Kotlin and you want grammars to behave like normal application code, with IDE support, refactoring, and unit tests, Priluka is built for that case specifically.
+
 ## What This Looks Like in Practice
 
 The sibling playground project already uses Priluka on real tender caches to extract:
@@ -197,71 +207,48 @@ These are the kinds of facts that procurement and legal documents repeatedly exp
 
 ## Benchmarks
 
-The playground project currently contains real corpus scans and synthetic evidence benchmarks over tender-style documents.
+The benchmark report in `benchmark.md` is a JMH `AverageTime` run for
+`MoneyGrammar.findAll(...)` on deterministic synthetic text.
 
-Benchmark context: measured on a 2015 iMac with a 4 GHz quad-core Intel i7.
+It was run single-threaded with one fork and one warmup/measurement setup on a
+`Standard_D2s_v5` Azure VM in `westus2` running Ubuntu 24.04 and OpenJDK 17.
 
-NFA is the general-purpose engine; DFA is the optimized path for compatible search grammars. DFA compilation is treated as parser startup cost and is excluded from throughput.
-
-Latest synthetic benchmark from `SyntheticEvidenceBenchmark` on a 20 MiB generated corpus, run on June 21, 2026:
-
-```text
-target         engine  matches  prepare  warmup  avg scan  speed
-date           NFA     34       0.05s    10.43s  4.70s     4.25 MiB/s
-date           DFA     34       0.27s    2.32s   1.20s     16.64 MiB/s
-
-date-evidence  NFA     35       0.10s    12.98s  5.90s     3.39 MiB/s
-date-evidence  DFA     35       3.94s    2.26s   0.93s     21.54 MiB/s
-
-deadline       NFA     10       0.08s    7.30s   3.75s     5.33 MiB/s
-deadline       DFA     10       6.50s    3.70s   1.84s     10.90 MiB/s
-
-money          NFA     14       0.02s    5.85s   2.44s     8.19 MiB/s
-money          DFA     14       0.08s    3.94s   1.92s     10.43 MiB/s
-```
-
-The command used a single parser instance per grammar target:
-
-```bash
-mvn -q compile exec:java \
-  -Dexec.mainClass=io.github.ukman.priluka.test.SyntheticEvidenceBenchmark \
-  -DtargetBytes=20971520 \
-  -Dinsertions=50 \
-  -DwarmupRuns=2 \
-  -DmeasuredRuns=3
-```
-
-The `prepare` column forces recognizer construction before timing. For DFA it includes automaton compilation, which should happen once when the parser is initialized and then be reused across a package or corpus. The `avg scan` column is the average of three measured passes after warmup and is the throughput number that matters for long-running extraction.
-
-This is the strongest current speed signal: the DFA path reaches about 10 to 22 MiB/s on these grammar families while matching the same number of hits as the NFA comparison path. In practice, that means the DFA path keeps the same recall and precision on these benchmarks while running several times faster on the harder grammars.
-
-Focused deadline-only run on the same 20 MiB generated string:
-
-```bash
-mvn -q compile exec:java \
-  -Dexec.mainClass=io.github.ukman.priluka.test.SyntheticEvidenceBenchmark \
-  -Dtarget=deadline \
-  -Dengine=DFA \
-  -DtargetBytes=20971520 \
-  -Dinsertions=50 \
-  -DwarmupRuns=5 \
-  -DmeasuredRuns=5
-```
+The headline result for the current implementation is about `14-17 MiB/s` on
+this DFA `findAll(...)` benchmark, with the 20 MiB case landing around
+`15.89 MiB/s`.
 
 ```text
-target    engine  matches  prepare  warmup   avg scan  speed
-deadline  DFA     10       8.49s    8.61s    1.78s     11.21 MiB/s
+5 MiB   16.99 MiB/s
+10 MiB  16.95 MiB/s
+20 MiB  15.89 MiB/s
+30 MiB  14.75 MiB/s
+40 MiB  13.51 MiB/s
 ```
 
-This run is a single 20 MiB string, not a small file scan. The DFA `prepare`
-cost is startup cost for one parser/target; the hot scan is the reusable
-throughput number. This is public `findAll(...)` throughput, so it includes
-lexing and trace/object reconstruction for accepted spans, not only pure DFA
-span scanning.
+The benchmark can be rerun with the helper script from `benchmark.md`:
 
-For a real-corpus reference point, deadline extraction on a 5 MiB golden tender subset found 16 matches and 12 distinct evidence strings, with scan-only speed around 0.37 MiB/s on that older general-purpose path.
+```bash
+./scripts/run-money-findall-dfa-jmh.sh \
+  io.github.ukman.priluka.benchmark.MoneyFindAllDfaBenchmark \
+  -p sizeMiB=5,10,20,30,40 \
+  -wi 1 \
+  -i 1 \
+  -f 1 \
+  -t 1
+```
 
-Scanning 20 MiB this way is effectively negligible compute on a single machine; sending the same volume through an LLM API would usually cost materially more and add minutes of latency.
+This is the strongest current speed signal: the DFA path keeps the same hit
+count as the slower comparison path, so the benchmark is about throughput, not
+recall tradeoff.
+
+The full benchmark report in `benchmark.md` has the detailed setup and the
+additional runs.
+
+This benchmark measures the full public `findAll(...)` path on deterministic
+synthetic text, so the throughput includes lexing and result reconstruction for
+accepted spans, not only the raw DFA walk.
+
+Scanning 20 MiB this way is effectively negligible compute; sending the same volume through an LLM API would usually cost materially more and add minutes of latency.
 
 The corpus-based runs on real procurement documents, including date ranges, deadlines, and money evidence, are still useful for proving recall and provenance on actual tender text, but the synthetic benchmark above is the cleanest current speed signal.
 
