@@ -30,6 +30,8 @@ public final class DfaFindRecognizer {
     private final Map<BitSetKey, Integer> stateIds = new LinkedHashMap<BitSetKey, Integer>();
     private final List<int[]> transitions = new ArrayList<int[]>();
     private final Map<TerminalKey, Integer> runtimeAlphabetIds = new LinkedHashMap<TerminalKey, Integer>();
+    private final Map<List<TerminalSymbol>, Integer> runtimeTerminalListIds =
+        new LinkedHashMap<List<TerminalSymbol>, Integer>();
 
     public DfaFindRecognizer(NfaGraph graph, Lexer lexer) {
         this(graph, lexer, terminalSymbols(graph));
@@ -123,7 +125,12 @@ public final class DfaFindRecognizer {
                 continue;
             }
 
-            if (best == null && transition(0, terminalId) >= 0) {
+            int startTransition = best == null ? transition(0, terminalId) : -1;
+            if (best == null && active.isEmpty() && startTransition < 0) {
+                continue;
+            }
+
+            if (best == null && startTransition >= 0) {
                 active.add(new ActiveState(0, lexeme.getStart(), i));
             }
 
@@ -162,14 +169,22 @@ public final class DfaFindRecognizer {
     }
 
     private int terminalId(Lexeme lexeme) {
-        TerminalKey key = terminalKey(lexeme);
+        List<TerminalSymbol> terminals = lexeme.getTerminalTypes();
+        Integer cachedList = runtimeTerminalListIds.get(terminals);
+        if (cachedList != null) {
+            return cachedList.intValue();
+        }
+        TerminalKey key = terminalKey(terminals);
         Integer cached = runtimeAlphabetIds.get(key);
         if (cached != null) {
-            return cached.intValue();
+            int value = cached.intValue();
+            runtimeTerminalListIds.put(terminals, Integer.valueOf(value));
+            return value;
         }
         Integer id = alphabetIds.get(key);
         int value = id == null ? -1 : id.intValue();
         runtimeAlphabetIds.put(key, Integer.valueOf(value));
+        runtimeTerminalListIds.put(terminals, Integer.valueOf(value));
         return value;
     }
 
@@ -252,8 +267,12 @@ public final class DfaFindRecognizer {
     }
 
     private static TerminalKey terminalKey(Lexeme lexeme) {
+        return terminalKey(lexeme.getTerminalTypes());
+    }
+
+    private static TerminalKey terminalKey(List<TerminalSymbol> terminals) {
         List<Class<?>> types = new ArrayList<Class<?>>();
-        for (TerminalSymbol terminal : lexeme.getTerminalTypes()) {
+        for (TerminalSymbol terminal : terminals) {
             types.add(terminal.getType());
         }
         return new TerminalKey(types);
