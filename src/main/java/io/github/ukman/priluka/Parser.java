@@ -3,6 +3,7 @@ package io.github.ukman.priluka;
 import io.github.ukman.priluka.grammar.GrammarModel;
 import io.github.ukman.priluka.grammar.NfaCompatibility;
 import io.github.ukman.priluka.internal.GrammarModelBuilder;
+import io.github.ukman.priluka.internal.lexer.LexerConfig;
 import io.github.ukman.priluka.internal.nfa.NfaFindResult;
 import io.github.ukman.priluka.internal.nfa.NfaParseEngine;
 import io.github.ukman.priluka.internal.nfa.NfaRecognizer;
@@ -59,6 +60,9 @@ public final class Parser {
     public static final class Builder {
         private final List<Class<?>> classes = new ArrayList<Class<?>>();
         private final List<Class<?>> lexerTerminalTypes = new ArrayList<Class<?>>();
+        private final List<Class<?>> skipTerminalTypes = new ArrayList<Class<?>>();
+        private LexerEngine lexerEngine = LexerEngine.DEFAULT;
+        private boolean regexpCaseSensitive = true;
 
         private Builder() {
         }
@@ -77,25 +81,52 @@ public final class Parser {
             return this;
         }
 
+        public Builder skip(Class<?>... terminalTypes) {
+            for (int i = 0; i < terminalTypes.length; i++) {
+                this.skipTerminalTypes.add(terminalTypes[i]);
+            }
+            return this;
+        }
+
+        public Builder caseSensitive() {
+            this.regexpCaseSensitive = true;
+            return this;
+        }
+
+        public Builder caseInsensitive() {
+            this.regexpCaseSensitive = false;
+            return this;
+        }
+
+        public Builder engine(LexerEngine engine) {
+            this.lexerEngine = engine;
+            return this;
+        }
+
         public InitializedParser build() {
             return new InitializedParser(
                 classes.toArray(new Class<?>[classes.size()]),
-                lexerTerminalTypes.toArray(new Class<?>[lexerTerminalTypes.size()])
+                new LexerConfig(
+                    lexerTerminalTypes.toArray(new Class<?>[lexerTerminalTypes.size()]),
+                    skipTerminalTypes.toArray(new Class<?>[skipTerminalTypes.size()]),
+                    lexerEngine,
+                    regexpCaseSensitive
+                )
             );
         }
     }
 
     public static final class InitializedParser {
         private final Class<?>[] classes;
-        private final Class<?>[] lexerTerminalTypes;
+        private final LexerConfig lexerConfig;
 
         private InitializedParser(Class<?>[] classes) {
-            this(classes, new Class<?>[0]);
+            this(classes, LexerConfig.DEFAULT);
         }
 
-        private InitializedParser(Class<?>[] classes, Class<?>[] lexerTerminalTypes) {
+        private InitializedParser(Class<?>[] classes, LexerConfig lexerConfig) {
             this.classes = classes.clone();
-            this.lexerTerminalTypes = lexerTerminalTypes.clone();
+            this.lexerConfig = lexerConfig;
         }
 
         public <S> S parse(Class<S> start, String input) {
@@ -115,7 +146,7 @@ public final class Parser {
             if (!compatibility.isSupported()) {
                 throw new GrammarException(compatibility.toString());
             }
-            NfaFindResult result = new NfaRecognizer(model, lexerTerminalTypes).find(input);
+            NfaFindResult result = new NfaRecognizer(model, lexerConfig).find(input);
             if (result == null) {
                 return null;
             }
@@ -132,7 +163,7 @@ public final class Parser {
             if (!compatibility.isSupported()) {
                 throw new GrammarException(compatibility.toString());
             }
-            List<NfaFindResult> nfaResults = new NfaRecognizer(model, lexerTerminalTypes).findAll(input);
+            List<NfaFindResult> nfaResults = new NfaRecognizer(model, lexerConfig).findAll(input);
             List<ParseFindResult<S>> results = new ArrayList<ParseFindResult<S>>(nfaResults.size());
             for (NfaFindResult result : nfaResults) {
                 results.add(toFindResult(start, result));
@@ -154,16 +185,13 @@ public final class Parser {
 
         private ParseEngine parseEngine(GrammarModel model) {
             if (model.checkNfaCompatibility().isSupported()) {
-                return new NfaParseEngine(model);
+                return new NfaParseEngine(model, lexerConfig);
             }
-            return new ReflectiveParser(model);
+            return new ReflectiveParser(model, lexerConfig);
         }
 
         private InitializedParser withTerminals(Class<?>... lexerTerminalTypes) {
-            Class<?>[] combined = new Class<?>[this.lexerTerminalTypes.length + lexerTerminalTypes.length];
-            System.arraycopy(this.lexerTerminalTypes, 0, combined, 0, this.lexerTerminalTypes.length);
-            System.arraycopy(lexerTerminalTypes, 0, combined, this.lexerTerminalTypes.length, lexerTerminalTypes.length);
-            return new InitializedParser(classes, combined);
+            return new InitializedParser(classes, lexerConfig.withAdditionalTerminals(lexerTerminalTypes));
         }
 
         private <S> ParseFindResult<S> toFindResult(Class<S> start, NfaFindResult result) {

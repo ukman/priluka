@@ -113,7 +113,7 @@ public final class BricsLexer implements Lexer {
 
         List<TerminalAutomaton> automata = new ArrayList<TerminalAutomaton>();
         for (TerminalSymbol terminal : ordered) {
-            automata.add(new TerminalAutomaton(terminal, BricsTerminalAutomata.compile(terminal)));
+            automata.add(new TerminalAutomaton(terminal, BricsTerminalAutomata.compile(terminal, options)));
         }
         return Collections.unmodifiableList(automata);
     }

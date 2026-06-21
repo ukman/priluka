@@ -5,16 +5,28 @@ import dk.brics.automaton.RegExp;
 import dk.brics.automaton.RunAutomaton;
 import io.github.ukman.priluka.grammar.TerminalSymbol;
 
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
+
 final class BricsTerminalAutomata {
     private BricsTerminalAutomata() {
     }
 
     static RunAutomaton compile(TerminalSymbol terminal) {
+        return compile(terminal, LexerOptions.DEFAULT);
+    }
+
+    static RunAutomaton compile(TerminalSymbol terminal, LexerOptions options) {
         Automaton automaton;
         if (terminal.getKind() == TerminalSymbol.Kind.KEYWORD) {
             automaton = keyword(terminal.getPattern(), terminal.isCaseSensitive());
         } else {
             automaton = regexp(terminal.getPattern());
+            if (!options.isRegexpCaseSensitive()) {
+                automaton = automaton.subst(asciiCaseFolding());
+            }
         }
         automaton.determinize();
         automaton.minimize();
@@ -50,6 +62,19 @@ final class BricsTerminalAutomata {
             return quotedStringWithoutEscapes();
         }
         return new RegExp(pattern).toAutomaton();
+    }
+
+    private static Map<Character, Set<Character>> asciiCaseFolding() {
+        Map<Character, Set<Character>> result = new LinkedHashMap<Character, Set<Character>>();
+        for (char c = 'a'; c <= 'z'; c++) {
+            char upper = Character.toUpperCase(c);
+            Set<Character> both = new LinkedHashSet<Character>();
+            both.add(Character.valueOf(c));
+            both.add(Character.valueOf(upper));
+            result.put(Character.valueOf(c), both);
+            result.put(Character.valueOf(upper), both);
+        }
+        return result;
     }
 
     private static Automaton quotedStringWithEscapes() {

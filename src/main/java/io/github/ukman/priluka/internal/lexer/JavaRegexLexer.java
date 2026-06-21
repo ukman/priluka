@@ -27,7 +27,8 @@ public final class JavaRegexLexer implements Lexer {
         this.keywordCarrierIndex = options.isKeywordCarrierOptimization()
             ? KeywordCarrierIndex.build(spec.getTerminals())
             : KeywordCarrierIndex.empty(spec.getTerminals());
-        this.masterPattern = new MasterPatternBuilder().build(new LexerSpec(keywordCarrierIndex.getMasterTerminals()));
+        this.masterPattern = new MasterPatternBuilder(options.isRegexpCaseSensitive())
+            .build(new LexerSpec(keywordCarrierIndex.getMasterTerminals()));
         this.terminalPatterns = compileTerminalPatterns(spec.getTerminals());
     }
 
@@ -138,6 +139,9 @@ public final class JavaRegexLexer implements Lexer {
                 return "(?iu:" + quoted + ")";
             }
             return quoted;
+        }
+        if (!options.isRegexpCaseSensitive()) {
+            return "(?iu:" + terminal.getPattern() + ")";
         }
         return terminal.getPattern();
     }

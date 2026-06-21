@@ -84,4 +84,8 @@ public final class TerminalSymbol {
     public List<String> getKeywordTexts() {
         return keywordTexts;
     }
+
+    public TerminalSymbol withSkip(boolean skip) {
+        return new TerminalSymbol(type, kind, pattern, skip, priority, caseSensitive, keywordTexts);
+    }
 }

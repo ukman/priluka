@@ -3,14 +3,10 @@ package io.github.ukman.priluka.internal.nfa;
 import io.github.ukman.priluka.ParseTrace;
 import io.github.ukman.priluka.ParseTraceEvent;
 import io.github.ukman.priluka.grammar.GrammarModel;
-import io.github.ukman.priluka.grammar.TerminalSymbol;
-import io.github.ukman.priluka.internal.GrammarModelBuilder;
 import io.github.ukman.priluka.internal.lexer.Lexeme;
 import io.github.ukman.priluka.internal.lexer.Lexer;
+import io.github.ukman.priluka.internal.lexer.LexerConfig;
 import io.github.ukman.priluka.internal.lexer.LexerException;
-import io.github.ukman.priluka.internal.lexer.LexerOptions;
-import io.github.ukman.priluka.internal.lexer.LexerSpec;
-import io.github.ukman.priluka.internal.lexer.Lexers;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -29,11 +25,15 @@ public final class NfaRecognizer {
     private final Set<Class<?>> startTerminalTypes = new LinkedHashSet<Class<?>>();
 
     public NfaRecognizer(GrammarModel model) {
-        this(new NfaCompiler(model).compile(), lexerFor(model));
+        this(model, LexerConfig.DEFAULT);
     }
 
     public NfaRecognizer(GrammarModel model, Class<?>... lexerTerminalTypes) {
-        this(new NfaCompiler(model).compile(), lexerFor(model, lexerTerminalTypes));
+        this(model, LexerConfig.terminals(lexerTerminalTypes));
+    }
+
+    public NfaRecognizer(GrammarModel model, LexerConfig lexerConfig) {
+        this(new NfaCompiler(model).compile(), lexerConfig.createLexer(model));
     }
 
     public NfaRecognizer(NfaGraph graph, Lexer lexer) {
@@ -362,34 +362,6 @@ public final class NfaRecognizer {
             result.add(stack.pop());
         }
         return result;
-    }
-
-    private static Lexer lexerFor(GrammarModel model, Class<?>... lexerTerminalTypes) {
-        return Lexers.defaultLexer(
-            new LexerSpec(terminalsWithImplicitWhitespace(model, lexerTerminalTypes)),
-            LexerOptions.DEFAULT
-        );
-    }
-
-    private static List<TerminalSymbol> terminalsWithImplicitWhitespace(GrammarModel model, Class<?>... lexerTerminalTypes) {
-        List<TerminalSymbol> result = new ArrayList<TerminalSymbol>(model.getTerminals());
-        for (int i = 0; i < lexerTerminalTypes.length; i++) {
-            addIfAbsent(result, GrammarModelBuilder.terminalSymbol(lexerTerminalTypes[i]));
-        }
-        result.add(new TerminalSymbol(ImplicitWhitespace.class, TerminalSymbol.Kind.REGEXP, "\\s+", true, -1000));
-        return result;
-    }
-
-    private static void addIfAbsent(List<TerminalSymbol> terminals, TerminalSymbol terminal) {
-        for (TerminalSymbol existing : terminals) {
-            if (existing.getType().equals(terminal.getType())) {
-                return;
-            }
-        }
-        terminals.add(terminal);
-    }
-
-    private static final class ImplicitWhitespace {
     }
 
     private static final class Configuration {

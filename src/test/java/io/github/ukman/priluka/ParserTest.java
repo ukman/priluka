@@ -130,6 +130,65 @@ class ParserTest {
     }
 
     @Test
+    void builderConfiguresSkippedTerminals() {
+        NumberWithComments value = Parser
+            .builder()
+            .skip(Comment.class)
+            .build()
+            .parse(NumberWithComments.class, "/*before*/ 42 /*after*/");
+
+        assertEquals(Integer.valueOf(42), value.value);
+    }
+
+    @Test
+    void builderConfiguresJavaRegexLexerEngine() {
+        NumberWithComments value = Parser
+            .builder()
+            .skip(Comment.class)
+            .engine(LexerEngine.JAVA_REGEX)
+            .build()
+            .parse(NumberWithComments.class, "/*before*/ 42");
+
+        assertEquals(Integer.valueOf(42), value.value);
+    }
+
+    @Test
+    void builderConfiguresBricsLexerEngine() {
+        NumberWithComments value = Parser
+            .builder()
+            .skip(Comment.class)
+            .engine(LexerEngine.BRICS)
+            .build()
+            .parse(NumberWithComments.class, "/*before*/ 42");
+
+        assertEquals(Integer.valueOf(42), value.value);
+    }
+
+    @Test
+    void builderConfiguresCaseInsensitiveRegexpMode() {
+        LowerWordExpression expression = Parser
+            .builder()
+            .caseInsensitive()
+            .engine(LexerEngine.BRICS)
+            .build()
+            .parse(LowerWordExpression.class, "HELLO");
+
+        assertEquals("HELLO", expression.word.text);
+    }
+
+    @Test
+    void builderConfiguresCaseInsensitiveRegexpModeForJavaRegexEngine() {
+        LowerWordExpression expression = Parser
+            .builder()
+            .caseInsensitive()
+            .engine(LexerEngine.JAVA_REGEX)
+            .build()
+            .parse(LowerWordExpression.class, "HELLO");
+
+        assertEquals("HELLO", expression.word.text);
+    }
+
+    @Test
     void parsesInterfaceAlternativeFromInitializedUniverse() {
         Expression expression = Parser
             .init(Expression.class, NumberExpression.class)
@@ -220,8 +279,37 @@ class ParserTest {
         }
     }
 
+    static class NumberWithComments {
+        final Integer value;
+
+        NumberWithComments(Integer value) {
+            this.value = value;
+        }
+    }
+
+    static class LowerWordExpression {
+        final LowerWord word;
+
+        LowerWordExpression(LowerWord word) {
+            this.word = word;
+        }
+    }
+
     @Keyword(",")
     static class Comma {
+    }
+
+    @Terminal(regexp = "/\\*[^*]*\\*/")
+    static class Comment {
+    }
+
+    @Terminal(regexp = "[a-z]+")
+    static class LowerWord {
+        final String text;
+
+        LowerWord(String text) {
+            this.text = text;
+        }
     }
 
     static class SmallPerfect {

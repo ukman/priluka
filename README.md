@@ -1673,11 +1673,19 @@ Parser parser = Parser
     .builder()
     .classes(SentencePerfect.class, Pronoun.class, HaveHas.class, Verb3Form.class)
     .terminals(Word.class)
+    .skip(Space.class, Comment.class)
+    .caseSensitive()
+    .engine(LexerEngine.BRICS)
     .build();
 
 ParseFindResult<SentencePerfect> first = parser.find(SentencePerfect.class, text);
 List<ParseFindResult<SentencePerfect>> all = parser.findAll(SentencePerfect.class, text);
 ```
+
+`caseSensitive()` is the default regexp-engine mode. Use `caseInsensitive()`
+when regular-expression terminals should be matched without regard to case.
+Keyword terminals still keep their own `@Keyword(caseSensitive = ...)` or
+`@Keywords(caseSensitive = ...)` contract.
 
 This first find mode is still token-stream based: the lexer must be able to
 tokenize the searched text using the grammar's terminals and skip terminals.

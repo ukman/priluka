@@ -10,9 +10,7 @@ import io.github.ukman.priluka.grammar.ProductionPart;
 import io.github.ukman.priluka.grammar.TerminalSymbol;
 import io.github.ukman.priluka.internal.lexer.Lexeme;
 import io.github.ukman.priluka.internal.lexer.Lexer;
-import io.github.ukman.priluka.internal.lexer.LexerOptions;
-import io.github.ukman.priluka.internal.lexer.LexerSpec;
-import io.github.ukman.priluka.internal.lexer.Lexers;
+import io.github.ukman.priluka.internal.lexer.LexerConfig;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -27,11 +25,17 @@ public final class ReflectiveParser implements ParseEngine {
     private final Map<Class<?>, NonterminalSymbol> nonterminals = new LinkedHashMap<Class<?>, NonterminalSymbol>();
     private final Map<Class<?>, TerminalSymbol> terminals = new LinkedHashMap<Class<?>, TerminalSymbol>();
     private final GrammarPredictor predictor;
+    private final LexerConfig lexerConfig;
     private final boolean debug;
     private final ParseDebugStats debugStats = new ParseDebugStats();
 
     public ReflectiveParser(GrammarModel model) {
+        this(model, LexerConfig.DEFAULT);
+    }
+
+    public ReflectiveParser(GrammarModel model, LexerConfig lexerConfig) {
         this.model = model;
+        this.lexerConfig = lexerConfig;
         for (NonterminalSymbol nonterminal : model.getNonterminals()) {
             nonterminals.put(nonterminal.getType(), nonterminal);
         }
@@ -47,7 +51,7 @@ public final class ReflectiveParser implements ParseEngine {
         if (debug) {
             debugStats.reset();
         }
-        Lexer lexer = Lexers.defaultLexer(new LexerSpec(terminalsWithImplicitWhitespace()), LexerOptions.DEFAULT);
+        Lexer lexer = lexerConfig.createLexer(model.getTerminals());
         List<Lexeme> lexemes = lexer.tokenize(input);
         ParseSearch search = parseStart(start, lexemes);
         if (search.full != null) {
@@ -522,15 +526,6 @@ public final class ReflectiveParser implements ParseEngine {
         events.add(ParseTraceEvent.consumeTerminal(type, lexeme.getText(), lexeme.getStart(), lexeme.getLen()));
         results.add(new ParseResult(position + 1, events));
         return results;
-    }
-
-    private List<TerminalSymbol> terminalsWithImplicitWhitespace() {
-        List<TerminalSymbol> result = new ArrayList<TerminalSymbol>(model.getTerminals());
-        result.add(new TerminalSymbol(ImplicitWhitespace.class, TerminalSymbol.Kind.REGEXP, "\\s+", true, -1000));
-        return result;
-    }
-
-    private static final class ImplicitWhitespace {
     }
 
     private static final class ParseState {

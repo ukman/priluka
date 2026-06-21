@@ -8,6 +8,16 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 public final class MasterPatternBuilder {
+    private final boolean regexpCaseSensitive;
+
+    public MasterPatternBuilder() {
+        this(true);
+    }
+
+    public MasterPatternBuilder(boolean regexpCaseSensitive) {
+        this.regexpCaseSensitive = regexpCaseSensitive;
+    }
+
     public MasterPattern build(LexerSpec spec) {
         List<TerminalSymbol> terminals = new ArrayList<TerminalSymbol>(spec.getTerminals());
         terminals.sort(new TerminalOrder());
@@ -38,6 +48,9 @@ public final class MasterPatternBuilder {
                 return "(?iu:" + quoted + ")";
             }
             return quoted;
+        }
+        if (!regexpCaseSensitive) {
+            return "(?iu:" + terminal.getPattern() + ")";
         }
         return terminal.getPattern();
     }

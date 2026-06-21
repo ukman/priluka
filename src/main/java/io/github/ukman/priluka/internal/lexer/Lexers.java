@@ -1,5 +1,7 @@
 package io.github.ukman.priluka.internal.lexer;
 
+import io.github.ukman.priluka.LexerEngine;
+
 public final class Lexers {
     private Lexers() {
     }
@@ -30,5 +32,12 @@ public final class Lexers {
 
     public static Lexer asciiWord(LexerSpec spec, Class<?> wordTerminalType) {
         return new AsciiWordLexer(spec, wordTerminalType);
+    }
+
+    public static Lexer create(LexerEngine engine, LexerSpec spec, LexerOptions options) {
+        if (engine == LexerEngine.JAVA_REGEX) {
+            return javaRegex(spec, options);
+        }
+        return brics(spec, options);
     }
 }
