@@ -47,6 +47,8 @@ Priluka is designed for the use case where recall, precision, and provenance all
 
 - Deterministic matching of structured facts in raw text.
 - Typed grammar definitions in ordinary Java classes.
+- Bounded gap patterns such as `@Occurrences(max = 6) Word[]` for evidence phrases.
+- Hard-boundary guards with `@NoHardBoundary` on extraction roots or constructor parameters.
 - Evidence with provenance: every hit can carry source location and matched text.
 - A compact output shape that is ready for downstream indexing, deduplication, or LLM reasoning.
 - A path from one grammar to many composable grammars, instead of one giant handwritten parser.
@@ -127,6 +129,11 @@ The sibling playground project already uses Priluka on real tender caches to ext
 
 Those grammars are built to surface facts from procurement-style text, which is exactly the kind of corpus where deterministic evidence extraction is valuable.
 
+The reusable evidence grammars currently live in:
+
+- `io.github.ukman.priluka.evidence.DateGrammar`
+- `io.github.ukman.priluka.evidence.MoneyGrammar`
+
 The playground also writes TSV outputs and package summaries so you can inspect:
 
 - what matched
@@ -179,11 +186,9 @@ List<ParseFindResult<ExampleMoney>> moneyHits = parser.findAll(ExampleMoney.clas
 ParseTraceResult<ExampleFact> parsed = parser.trace(ExampleFact.class, documentText);
 ```
 
-## Planned Example Bundle
+## Bundled Evidence Grammars
 
-The intended public story is to ship Priluka with ready-to-use evidence grammars for document-heavy workflows.
-
-Good first bundled examples are:
+Priluka now ships the first reusable evidence grammars for document-heavy workflows:
 
 - `Date`
 - `DateRange`
@@ -192,6 +197,11 @@ Good first bundled examples are:
 - `MoneyRange`
 - `MoneyThreshold`
 - `InsuranceLimit`
+
+`MoneyGrammar` supports common prefix/suffix currency forms including GBP, USD,
+EUR, CAD, AUD, NZD, JPY, CNY, SAR, CHF, Nordic currencies, European currencies
+such as PLN, CZK, HUF, RON, BGN, UAH, GEL, TRY, and related word forms like
+`Canadian dollars`, `Swiss francs`, and `Norwegian kroner`.
 
 These are the kinds of facts that procurement and legal documents repeatedly express in many surface forms.
 
