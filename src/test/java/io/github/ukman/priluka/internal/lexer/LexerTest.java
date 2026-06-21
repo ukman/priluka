@@ -205,6 +205,28 @@ class LexerTest {
         assertTrue(lexemes.get(1).hasTerminal(Word.class));
     }
 
+    @Test
+    void asciiTextLexerSplitsTextAndAddsKeywordTypesFromMap() {
+        Lexer lexer = Lexers.asciiText(new LexerSpec(Arrays.asList(
+            keyword(Year2026.class, "2026", 0),
+            keyword(Slash.class, "/", 0),
+            keyword(Month04.class, "04", 0),
+            keyword(April.class, "April", false, 0)
+        )));
+
+        List<Lexeme> lexemes = lexer.tokenize("noise 2026/04 APRIL @");
+
+        assertEquals(6, lexemes.size());
+        assertEquals("noise", lexemes.get(0).getText());
+        assertEquals(0, lexemes.get(0).getTerminalTypes().size());
+        assertTrue(lexemes.get(1).hasTerminal(Year2026.class));
+        assertTrue(lexemes.get(2).hasTerminal(Slash.class));
+        assertTrue(lexemes.get(3).hasTerminal(Month04.class));
+        assertTrue(lexemes.get(4).hasTerminal(April.class));
+        assertEquals("@", lexemes.get(5).getText());
+        assertEquals(0, lexemes.get(5).getTerminalTypes().size());
+    }
+
     static Stream<LexerFactory> lexerFactories() {
         return Stream.of(
             new LexerFactory() {
@@ -303,5 +325,17 @@ class LexerTest {
     }
 
     static class Comma {
+    }
+
+    static class Year2026 {
+    }
+
+    static class Slash {
+    }
+
+    static class Month04 {
+    }
+
+    static class April {
     }
 }
