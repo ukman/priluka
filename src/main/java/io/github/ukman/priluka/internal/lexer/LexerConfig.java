@@ -52,13 +52,21 @@ public final class LexerConfig {
     }
 
     public Lexer createLexer(List<TerminalSymbol> terminals) {
-        LexerSpec spec = new LexerSpec(terminalsWithImplicitWhitespace(terminals));
+        LexerSpec spec = new LexerSpec(configuredTerminals(terminals));
         LexerOptions options = new LexerOptions(
             collectAmbiguousTerminalTypes,
             keywordCarrierOptimization,
             regexpCaseSensitive
         );
         return Lexers.create(engine, spec, options);
+    }
+
+    public List<TerminalSymbol> configuredTerminals(GrammarModel model) {
+        return configuredTerminals(model.getTerminals());
+    }
+
+    public List<TerminalSymbol> configuredTerminals(List<TerminalSymbol> terminals) {
+        return terminalsWithImplicitWhitespace(terminals);
     }
 
     public LexerConfig withAdditionalTerminals(Class<?>... extraTerminalTypes) {

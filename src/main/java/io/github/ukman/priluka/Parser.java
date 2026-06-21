@@ -290,7 +290,11 @@ public final class Parser {
             if (cached != null) {
                 return cached;
             }
-            DfaFindRecognizer created = new DfaFindRecognizer(new NfaCompiler(model).compile(), lexerConfig.createLexer(model));
+            DfaFindRecognizer created = new DfaFindRecognizer(
+                new NfaCompiler(model).compile(),
+                lexerConfig.createLexer(model),
+                lexerConfig.configuredTerminals(model)
+            );
             dfaFindCache.put(start, created);
             return created;
         }

@@ -12,24 +12,39 @@ import java.util.BitSet;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 public final class DfaFindRecognizer {
     private final NfaGraph graph;
     private final Lexer lexer;
     private final NfaRecognizer traceRecognizer;
     private final List<List<NfaTransition>> outgoing;
-    private final Map<BitSetKey, DfaState> states = new LinkedHashMap<BitSetKey, DfaState>();
-    private final Map<TransitionKey, DfaState> transitionCache = new LinkedHashMap<TransitionKey, DfaState>();
-    private final DfaState startState;
+    private final List<TerminalKey> alphabet;
+    private final Map<TerminalKey, Integer> alphabetIds = new LinkedHashMap<TerminalKey, Integer>();
+    private final List<DfaState> states = new ArrayList<DfaState>();
+    private final Map<BitSetKey, Integer> stateIds = new LinkedHashMap<BitSetKey, Integer>();
+    private final List<int[]> transitions = new ArrayList<int[]>();
+    private final Map<TerminalKey, Integer> runtimeAlphabetIds = new LinkedHashMap<TerminalKey, Integer>();
 
     public DfaFindRecognizer(NfaGraph graph, Lexer lexer) {
+        this(graph, lexer, terminalSymbols(graph));
+    }
+
+    public DfaFindRecognizer(NfaGraph graph, Lexer lexer, List<TerminalSymbol> terminals) {
         this.graph = graph;
         this.lexer = lexer;
         this.traceRecognizer = new NfaRecognizer(graph, lexer);
         this.outgoing = outgoing(graph);
-        this.startState = state(closure(singleton(graph.getStart().getId())));
+        this.alphabet = alphabet(terminals, terminalTypes(graph));
+        for (int i = 0; i < alphabet.size(); i++) {
+            alphabetIds.put(alphabet.get(i), Integer.valueOf(i));
+        }
+        compile();
     }
 
     public List<NfaFindResult> findAll(String input) {
@@ -79,21 +94,44 @@ public final class DfaFindRecognizer {
         return results;
     }
 
+    private void compile() {
+        state(closure(singleton(graph.getStart().getId())));
+        for (int stateId = 0; stateId < states.size(); stateId++) {
+            int[] row = transitions.get(stateId);
+            DfaState state = states.get(stateId);
+            for (int i = 0; i < alphabet.size(); i++) {
+                BitSet move = move(state.nfaStates, alphabet.get(i));
+                if (!move.isEmpty()) {
+                    int target = state(closure(move));
+                    row[i] = target;
+                }
+            }
+        }
+    }
+
     private FindSpan findSpan(List<Lexeme> lexemes, int startTokenIndex) {
         List<ActiveState> active = new ArrayList<ActiveState>();
         FindSpan best = null;
         for (int i = startTokenIndex; i < lexemes.size(); i++) {
             Lexeme lexeme = lexemes.get(i);
-            TerminalKey terminalKey = terminalKey(lexeme);
-            if (best == null && transition(startState, terminalKey) != null) {
-                active.add(new ActiveState(startState, lexeme.getStart(), i));
+            int terminalId = terminalId(lexeme);
+            if (terminalId < 0) {
+                active.clear();
+                if (best != null) {
+                    return best;
+                }
+                continue;
+            }
+
+            if (best == null && transition(0, terminalId) >= 0) {
+                active.add(new ActiveState(0, lexeme.getStart(), i));
             }
 
             List<ActiveState> next = new ArrayList<ActiveState>();
             for (int j = 0; j < active.size(); j++) {
                 ActiveState current = active.get(j);
-                DfaState target = transition(current.state, terminalKey);
-                if (target != null) {
+                int target = transition(current.stateId, terminalId);
+                if (target >= 0) {
                     next.add(new ActiveState(
                         target,
                         current.start,
@@ -119,40 +157,50 @@ public final class DfaFindRecognizer {
         return best;
     }
 
-    private DfaState transition(DfaState state, TerminalKey terminalKey) {
-        TransitionKey key = new TransitionKey(state.id, terminalKey);
-        DfaState cached = transitionCache.get(key);
-        if (cached != null || transitionCache.containsKey(key)) {
-            return cached;
-        }
+    private int transition(int stateId, int terminalId) {
+        return transitions.get(stateId)[terminalId];
+    }
 
-        BitSet move = new BitSet(graph.getStates().size());
-        for (int nfaState = state.nfaStates.nextSetBit(0); nfaState >= 0; nfaState = state.nfaStates.nextSetBit(nfaState + 1)) {
-            List<NfaTransition> transitions = outgoing.get(nfaState);
-            for (int i = 0; i < transitions.size(); i++) {
-                NfaTransition transition = transitions.get(i);
+    private int terminalId(Lexeme lexeme) {
+        TerminalKey key = terminalKey(lexeme);
+        Integer cached = runtimeAlphabetIds.get(key);
+        if (cached != null) {
+            return cached.intValue();
+        }
+        Integer id = alphabetIds.get(key);
+        int value = id == null ? -1 : id.intValue();
+        runtimeAlphabetIds.put(key, Integer.valueOf(value));
+        return value;
+    }
+
+    private int state(BitSet nfaStates) {
+        BitSetKey key = new BitSetKey(nfaStates);
+        Integer existing = stateIds.get(key);
+        if (existing != null) {
+            return existing.intValue();
+        }
+        int id = states.size();
+        states.add(new DfaState(id, nfaStates, nfaStates.get(graph.getAccept().getId())));
+        stateIds.put(key, Integer.valueOf(id));
+        transitions.add(emptyRow(alphabet.size()));
+        return id;
+    }
+
+    private BitSet move(BitSet nfaStates, TerminalKey terminalKey) {
+        BitSet result = new BitSet(graph.getStates().size());
+        for (int nfaState = nfaStates.nextSetBit(0); nfaState >= 0; nfaState = nfaStates.nextSetBit(nfaState + 1)) {
+            List<NfaTransition> stateTransitions = outgoing.get(nfaState);
+            for (int i = 0; i < stateTransitions.size(); i++) {
+                NfaTransition transition = stateTransitions.get(i);
                 if (
                     transition.getKind() == NfaTransition.Kind.TERMINAL
                         && terminalKey.contains(transition.getSymbolType())
                 ) {
-                    move.set(transition.getTo().getId());
+                    result.set(transition.getTo().getId());
                 }
             }
         }
-        DfaState target = move.isEmpty() ? null : state(closure(move));
-        transitionCache.put(key, target);
-        return target;
-    }
-
-    private DfaState state(BitSet nfaStates) {
-        BitSetKey key = new BitSetKey(nfaStates);
-        DfaState existing = states.get(key);
-        if (existing != null) {
-            return existing;
-        }
-        DfaState created = new DfaState(states.size(), nfaStates, nfaStates.get(graph.getAccept().getId()));
-        states.put(key, created);
-        return created;
+        return result;
     }
 
     private BitSet closure(BitSet seed) {
@@ -163,9 +211,9 @@ public final class DfaFindRecognizer {
         }
         while (!queue.isEmpty()) {
             int state = queue.removeFirst().intValue();
-            List<NfaTransition> transitions = outgoing.get(state);
-            for (int i = 0; i < transitions.size(); i++) {
-                NfaTransition transition = transitions.get(i);
+            List<NfaTransition> stateTransitions = outgoing.get(state);
+            for (int i = 0; i < stateTransitions.size(); i++) {
+                NfaTransition transition = stateTransitions.get(i);
                 if (transition.getKind() != NfaTransition.Kind.TERMINAL) {
                     int to = transition.getTo().getId();
                     if (!result.get(to)) {
@@ -176,6 +224,14 @@ public final class DfaFindRecognizer {
             }
         }
         return result;
+    }
+
+    private static int[] emptyRow(int size) {
+        int[] row = new int[size];
+        for (int i = 0; i < row.length; i++) {
+            row[i] = -1;
+        }
+        return row;
     }
 
     private static List<List<NfaTransition>> outgoing(NfaGraph graph) {
@@ -200,19 +256,13 @@ public final class DfaFindRecognizer {
         for (TerminalSymbol terminal : lexeme.getTerminalTypes()) {
             types.add(terminal.getType());
         }
-        Collections.sort(types, new Comparator<Class<?>>() {
-            @Override
-            public int compare(Class<?> left, Class<?> right) {
-                return left.getName().compareTo(right.getName());
-            }
-        });
         return new TerminalKey(types);
     }
 
-    private static FindSpan firstAcceptedSpan(List<ActiveState> active) {
+    private FindSpan firstAcceptedSpan(List<ActiveState> active) {
         for (int i = 0; i < active.size(); i++) {
             ActiveState state = active.get(i);
-            if (state.state.accepting && state.end >= state.start) {
+            if (states.get(state.stateId).accepting && state.end >= state.start) {
                 return new FindSpan(state.start, state.end, state.startTokenIndex, state.endTokenIndex);
             }
         }
@@ -243,6 +293,128 @@ public final class DfaFindRecognizer {
         return result;
     }
 
+    private static List<TerminalKey> alphabet(List<TerminalSymbol> terminals, Set<Class<?>> usedTypes) {
+        List<TerminalSymbol> wordCarriers = carriers(terminals, "abc");
+        List<TerminalSymbol> numberCarriers = carriers(terminals, "123");
+        List<TerminalSymbol> symbolCarriers = carriers(terminals, "@");
+        Map<String, List<TerminalSymbol>> keywordGroups = new LinkedHashMap<String, List<TerminalSymbol>>();
+        for (TerminalSymbol terminal : terminals) {
+            if (!usedTypes.contains(terminal.getType()) || terminal.getKeywordTexts().isEmpty()) {
+                continue;
+            }
+            for (String text : terminal.getKeywordTexts()) {
+                String key = terminal.isCaseSensitive() ? text : text.toLowerCase(Locale.ROOT);
+                List<TerminalSymbol> group = keywordGroups.get(key);
+                if (group == null) {
+                    group = new ArrayList<TerminalSymbol>();
+                    keywordGroups.put(key, group);
+                }
+                group.add(terminal);
+            }
+        }
+
+        Set<TerminalKey> result = new LinkedHashSet<TerminalKey>();
+        addCarrierKey(result, wordCarriers);
+        addCarrierKey(result, numberCarriers);
+        addCarrierKey(result, symbolCarriers);
+        for (Map.Entry<String, List<TerminalSymbol>> entry : keywordGroups.entrySet()) {
+            List<TerminalSymbol> group = new ArrayList<TerminalSymbol>();
+            String text = entry.getKey();
+            if (isAsciiWord(text)) {
+                group.addAll(wordCarriers);
+            } else if (isAsciiNumber(text)) {
+                group.addAll(numberCarriers);
+            } else {
+                group.addAll(symbolCarriers);
+            }
+            group.addAll(entry.getValue());
+            result.add(new TerminalKey(types(group)));
+        }
+        for (TerminalSymbol terminal : terminals) {
+            if (usedTypes.contains(terminal.getType())) {
+                List<Class<?>> singleton = new ArrayList<Class<?>>();
+                singleton.add(terminal.getType());
+                result.add(new TerminalKey(singleton));
+            }
+        }
+        return new ArrayList<TerminalKey>(result);
+    }
+
+    private static void addCarrierKey(Set<TerminalKey> target, List<TerminalSymbol> carriers) {
+        if (!carriers.isEmpty()) {
+            target.add(new TerminalKey(types(carriers)));
+        }
+    }
+
+    private static List<TerminalSymbol> carriers(List<TerminalSymbol> terminals, String sample) {
+        List<TerminalSymbol> result = new ArrayList<TerminalSymbol>();
+        for (TerminalSymbol terminal : terminals) {
+            if (
+                terminal.getKind() == TerminalSymbol.Kind.REGEXP
+                    && matches(terminal, sample)
+            ) {
+                result.add(terminal);
+            }
+        }
+        return result;
+    }
+
+    private static boolean matches(TerminalSymbol terminal, String sample) {
+        return Pattern.compile(terminal.getPattern()).matcher(sample).matches();
+    }
+
+    private static boolean isAsciiWord(String text) {
+        if (text.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean isAsciiNumber(String text) {
+        if (text.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (!(c >= '0' && c <= '9')) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static List<Class<?>> types(List<TerminalSymbol> terminals) {
+        List<Class<?>> result = new ArrayList<Class<?>>();
+        for (int i = 0; i < terminals.size(); i++) {
+            result.add(terminals.get(i).getType());
+        }
+        return result;
+    }
+
+    private static Set<Class<?>> terminalTypes(NfaGraph graph) {
+        Set<Class<?>> result = new LinkedHashSet<Class<?>>();
+        for (NfaTransition transition : graph.getTransitions()) {
+            if (transition.getKind() == NfaTransition.Kind.TERMINAL) {
+                result.add(transition.getSymbolType());
+            }
+        }
+        return result;
+    }
+
+    private static List<TerminalSymbol> terminalSymbols(NfaGraph graph) {
+        List<TerminalSymbol> result = new ArrayList<TerminalSymbol>();
+        for (Class<?> type : terminalTypes(graph)) {
+            result.add(new TerminalSymbol(type, TerminalSymbol.Kind.REGEXP, "\\Q" + type.getName() + "\\E", false, 0));
+        }
+        return result;
+    }
+
     private static final class DfaState {
         private final int id;
         private final BitSet nfaStates;
@@ -256,18 +428,18 @@ public final class DfaFindRecognizer {
     }
 
     private static final class ActiveState {
-        private final DfaState state;
+        private final int stateId;
         private final int start;
         private final int end;
         private final int startTokenIndex;
         private final int endTokenIndex;
 
-        private ActiveState(DfaState state, int start, int startTokenIndex) {
-            this(state, start, start, startTokenIndex, startTokenIndex);
+        private ActiveState(int stateId, int start, int startTokenIndex) {
+            this(stateId, start, start, startTokenIndex, startTokenIndex);
         }
 
-        private ActiveState(DfaState state, int start, int end, int startTokenIndex, int endTokenIndex) {
-            this.state = state;
+        private ActiveState(int stateId, int start, int end, int startTokenIndex, int endTokenIndex) {
+            this.stateId = stateId;
             this.start = start;
             this.end = end;
             this.startTokenIndex = startTokenIndex;
@@ -311,7 +483,14 @@ public final class DfaFindRecognizer {
         private final List<Class<?>> types;
 
         private TerminalKey(List<Class<?>> types) {
-            this.types = Collections.unmodifiableList(new ArrayList<Class<?>>(types));
+            List<Class<?>> sorted = new ArrayList<Class<?>>(types);
+            Collections.sort(sorted, new Comparator<Class<?>>() {
+                @Override
+                public int compare(Class<?> left, Class<?> right) {
+                    return left.getName().compareTo(right.getName());
+                }
+            });
+            this.types = Collections.unmodifiableList(sorted);
         }
 
         private boolean contains(Class<?> type) {
@@ -326,30 +505,6 @@ public final class DfaFindRecognizer {
         @Override
         public int hashCode() {
             return types.hashCode();
-        }
-    }
-
-    private static final class TransitionKey {
-        private final int stateId;
-        private final TerminalKey terminalKey;
-
-        private TransitionKey(int stateId, TerminalKey terminalKey) {
-            this.stateId = stateId;
-            this.terminalKey = terminalKey;
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            if (!(other instanceof TransitionKey)) {
-                return false;
-            }
-            TransitionKey that = (TransitionKey) other;
-            return stateId == that.stateId && terminalKey.equals(that.terminalKey);
-        }
-
-        @Override
-        public int hashCode() {
-            return 31 * stateId + terminalKey.hashCode();
         }
     }
 }

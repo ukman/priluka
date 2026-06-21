@@ -195,6 +195,28 @@ class NfaRecognizerTest {
     }
 
     @Test
+    void dfaFindsKeywordWhenLexerAlsoAddsUnusedCarrierTerminal() {
+        GrammarModel model = Parser
+            .builder()
+            .classes(KeywordOnly.class, Hello.class, WordCarrier.class)
+            .terminals(WordCarrier.class)
+            .build()
+            .describe(KeywordOnly.class);
+        LexerConfig lexerConfig = LexerConfig.terminals(WordCarrier.class);
+        DfaFindRecognizer dfa = new DfaFindRecognizer(
+            new NfaCompiler(model).compile(),
+            lexerConfig.createLexer(model),
+            lexerConfig.configuredTerminals(model)
+        );
+
+        List<NfaFindSpan> results = dfa.findSpans("noise hello later");
+
+        assertEquals(1, results.size());
+        assertEquals(6, results.get(0).getStart());
+        assertEquals(11, results.get(0).getEnd());
+    }
+
+    @Test
     void findsSpansThroughStreamingAsciiWordLexer() {
         GrammarModel model = Parser
             .initFromOuterClass(SmallPerfectGrammar.class)
@@ -231,7 +253,8 @@ class NfaRecognizerTest {
     private DfaFindRecognizer dfaRecognizer(GrammarModel model) {
         return new DfaFindRecognizer(
             new NfaCompiler(model).compile(),
-            LexerConfig.DEFAULT.createLexer(model)
+            LexerConfig.DEFAULT.createLexer(model),
+            LexerConfig.DEFAULT.configuredTerminals(model)
         );
     }
 
@@ -285,6 +308,19 @@ class NfaRecognizerTest {
 
     @Keyword("-")
     static class Minus {
+    }
+
+    static class KeywordOnly {
+        KeywordOnly(Hello hello) {
+        }
+    }
+
+    @Keyword(value = "hello", caseSensitive = false)
+    static class Hello {
+    }
+
+    @Terminal(regexp = "[A-Za-z]+")
+    static class WordCarrier {
     }
 
     @Keyword(",")
