@@ -182,6 +182,21 @@ class NfaRecognizerTest {
     }
 
     @Test
+    void dfaFindStopsAfterBestSpanWhenFollowingTokenCannotContinueMatch() {
+        GrammarModel model = Parser.describe(PlusNumber.class);
+        NfaRecognizer nfa = new NfaRecognizer(model);
+        DfaFindRecognizer dfa = dfaRecognizer(model);
+
+        List<NfaFindSpan> nfaResults = nfa.findSpans("+ 12 34 56");
+        List<NfaFindSpan> dfaResults = dfa.findSpans("+ 12 34 56");
+
+        assertEquals(nfaResults.size(), dfaResults.size());
+        assertEquals(1, dfaResults.size());
+        assertEquals(0, dfaResults.get(0).getStart());
+        assertEquals(4, dfaResults.get(0).getEnd());
+    }
+
+    @Test
     void dfaFindBuildsTraceByReparsingMatchedSpan() {
         GrammarModel model = Parser.describe(PlusNumber.class);
         DfaFindRecognizer dfa = dfaRecognizer(model);
