@@ -36,7 +36,7 @@ import java.util.concurrent.TimeUnit;
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @Warmup(iterations = 3, time = 1, timeUnit = TimeUnit.SECONDS)
 @Measurement(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
-@Fork(value = 1, jvmArgsAppend = {"-Xms2g", "-Xmx2g"})
+@Fork(value = 1, jvmArgsAppend = {"-Xms4g", "-Xmx4g"})
 @Threads(1)
 public class MoneyFindAllDfaBenchmark {
     private static final int SEGMENT_BYTES = 64 * 1024;
