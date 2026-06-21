@@ -19,46 +19,88 @@ public final class ProductionPart {
     private final Quantifier quantifier;
     private final Class<?> separatorType;
     private final boolean trailingSeparator;
+    private final int minOccurrences;
+    private final int maxOccurrences;
+    private final boolean noHardBoundary;
 
     private ProductionPart(
         String symbolName,
         Class<?> symbolType,
         Quantifier quantifier,
         Class<?> separatorType,
-        boolean trailingSeparator
+        boolean trailingSeparator,
+        int minOccurrences,
+        int maxOccurrences,
+        boolean noHardBoundary
     ) {
         this.symbolName = symbolName;
         this.symbolType = symbolType;
         this.quantifier = quantifier;
         this.separatorType = separatorType;
         this.trailingSeparator = trailingSeparator;
+        this.minOccurrences = minOccurrences;
+        this.maxOccurrences = maxOccurrences;
+        this.noHardBoundary = noHardBoundary;
     }
 
     public static ProductionPart one(Class<?> symbolType) {
-        return new ProductionPart(symbolType.getSimpleName(), symbolType, Quantifier.ONE, null, false);
+        return new ProductionPart(symbolType.getSimpleName(), symbolType, Quantifier.ONE, null, false, 1, 1, false);
     }
 
     public static ProductionPart optional(Class<?> symbolType) {
-        return new ProductionPart(symbolType.getSimpleName(), symbolType, Quantifier.OPTIONAL, null, false);
+        return new ProductionPart(symbolType.getSimpleName(), symbolType, Quantifier.OPTIONAL, null, false, 0, 1, false);
     }
 
     public static ProductionPart repeated(Class<?> symbolType, boolean oneOrMore) {
+        return repeated(symbolType, oneOrMore ? 1 : 0, -1);
+    }
+
+    public static ProductionPart repeated(Class<?> symbolType, int minOccurrences, int maxOccurrences) {
         return new ProductionPart(
             symbolType.getSimpleName(),
             symbolType,
-            oneOrMore ? Quantifier.ONE_OR_MORE : Quantifier.ZERO_OR_MORE,
+            minOccurrences > 0 ? Quantifier.ONE_OR_MORE : Quantifier.ZERO_OR_MORE,
             null,
+            false,
+            minOccurrences,
+            maxOccurrences,
             false
         );
     }
 
     public static ProductionPart separated(Class<?> symbolType, Class<?> separatorType, boolean oneOrMore, boolean trailing) {
+        return separated(symbolType, separatorType, oneOrMore ? 1 : 0, -1, trailing);
+    }
+
+    public static ProductionPart separated(
+        Class<?> symbolType,
+        Class<?> separatorType,
+        int minOccurrences,
+        int maxOccurrences,
+        boolean trailing
+    ) {
         return new ProductionPart(
             symbolType.getSimpleName(),
             symbolType,
-            oneOrMore ? Quantifier.ONE_OR_MORE : Quantifier.ZERO_OR_MORE,
+            minOccurrences > 0 ? Quantifier.ONE_OR_MORE : Quantifier.ZERO_OR_MORE,
             separatorType,
-            trailing
+            trailing,
+            minOccurrences,
+            maxOccurrences,
+            false
+        );
+    }
+
+    public ProductionPart withNoHardBoundary() {
+        return new ProductionPart(
+            symbolName,
+            symbolType,
+            quantifier,
+            separatorType,
+            trailingSeparator,
+            minOccurrences,
+            maxOccurrences,
+            true
         );
     }
 
@@ -82,26 +124,70 @@ public final class ProductionPart {
         return trailingSeparator;
     }
 
+    public int getMinOccurrences() {
+        return minOccurrences;
+    }
+
+    public int getMaxOccurrences() {
+        return maxOccurrences;
+    }
+
+    public boolean hasBoundedOccurrences() {
+        return maxOccurrences >= 0;
+    }
+
+    public boolean isNoHardBoundary() {
+        return noHardBoundary;
+    }
+
     public String toBnf() {
+        String boundaryPrefix = noHardBoundary ? "@NoHardBoundary " : "";
         if (separatorType != null) {
             String text = symbolName + " (" + separatorType.getSimpleName() + " " + symbolName + ")*";
             if (trailingSeparator) {
                 text = text + " " + separatorType.getSimpleName() + "?";
             }
-            if (quantifier == Quantifier.ZERO_OR_MORE) {
-                return "(empty | " + text + ")";
+            if (hasCustomOccurrences()) {
+                return boundaryPrefix + "(" + text + ")" + occurrenceSuffix();
             }
-            return "(" + text + ")";
+            if (quantifier == Quantifier.ZERO_OR_MORE) {
+                return boundaryPrefix + "(empty | " + text + ")";
+            }
+            return boundaryPrefix + "(" + text + ")";
         }
         if (quantifier == Quantifier.OPTIONAL) {
-            return symbolName + "?";
+            return boundaryPrefix + symbolName + "?";
         }
         if (quantifier == Quantifier.ZERO_OR_MORE) {
-            return symbolName + "*";
+            if (hasCustomOccurrences()) {
+                return boundaryPrefix + symbolName + occurrenceSuffix();
+            }
+            return boundaryPrefix + symbolName + "*";
         }
         if (quantifier == Quantifier.ONE_OR_MORE) {
-            return symbolName + "+";
+            if (hasCustomOccurrences()) {
+                return boundaryPrefix + symbolName + occurrenceSuffix();
+            }
+            return boundaryPrefix + symbolName + "+";
         }
-        return symbolName;
+        if (hasCustomOccurrences()) {
+            return boundaryPrefix + symbolName + occurrenceSuffix();
+        }
+        return boundaryPrefix + symbolName;
+    }
+
+    private boolean hasCustomOccurrences() {
+        return quantifier == Quantifier.ZERO_OR_MORE && (minOccurrences != 0 || maxOccurrences != -1)
+            || quantifier == Quantifier.ONE_OR_MORE && (minOccurrences != 1 || maxOccurrences != -1);
+    }
+
+    private String occurrenceSuffix() {
+        if (maxOccurrences < 0) {
+            return "{" + minOccurrences + ",}";
+        }
+        if (minOccurrences == maxOccurrences) {
+            return "{" + minOccurrences + "}";
+        }
+        return "{" + minOccurrences + "," + maxOccurrences + "}";
     }
 }

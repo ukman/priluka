@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -260,6 +261,87 @@ class LexerTest {
         assertTrue(lexemes.get(6).hasTerminal(Percent.class));
     }
 
+    @Test
+    void asciiTextLexerAddsSpecificRegexTypesToScannedTokens() {
+        Lexer lexer = Lexers.asciiText(new LexerSpec(Arrays.asList(
+            regexp(Word.class, "[A-Za-z]+", false, 0),
+            regexp(Number.class, "[0-9]+", false, 0),
+            regexp(Symbol.class, "[^A-Za-z0-9\\s]", false, 0),
+            regexp(CapitalizedWord.class, "[A-Z][A-Za-z]*", false, 0),
+            regexp(AllCapsWord.class, "[A-Z][A-Z]{1,}", false, 0)
+        )));
+
+        List<Lexeme> lexemes = lexer.tokenize("Birmingham CCBC 123.");
+
+        assertEquals(4, lexemes.size());
+        assertEquals("Birmingham", lexemes.get(0).getText());
+        assertTrue(lexemes.get(0).hasTerminal(Word.class));
+        assertTrue(lexemes.get(0).hasTerminal(CapitalizedWord.class));
+        assertEquals("CCBC", lexemes.get(1).getText());
+        assertTrue(lexemes.get(1).hasTerminal(Word.class));
+        assertTrue(lexemes.get(1).hasTerminal(CapitalizedWord.class));
+        assertTrue(lexemes.get(1).hasTerminal(AllCapsWord.class));
+        assertEquals("123", lexemes.get(2).getText());
+        assertTrue(lexemes.get(2).hasTerminal(Number.class));
+        assertEquals(".", lexemes.get(3).getText());
+        assertTrue(lexemes.get(3).hasTerminal(Symbol.class));
+    }
+
+    @Test
+    void asciiTextLexerMarksHardBoundaryBeforeToken() {
+        Lexer lexer = Lexers.asciiText(new LexerSpec(Arrays.asList(
+            regexp(Word.class, "[A-Za-z]+", false, 0)
+        )));
+
+        List<Lexeme> lexemes = lexer.tokenize("alpha beta\ncharlie\tdelta");
+
+        assertEquals(4, lexemes.size());
+        assertEquals("alpha", lexemes.get(0).getText());
+        assertFalse(lexemes.get(0).hasHardBoundaryBefore());
+        assertEquals("beta", lexemes.get(1).getText());
+        assertFalse(lexemes.get(1).hasHardBoundaryBefore());
+        assertEquals("charlie", lexemes.get(2).getText());
+        assertTrue(lexemes.get(2).hasHardBoundaryBefore());
+        assertEquals("delta", lexemes.get(3).getText());
+        assertTrue(lexemes.get(3).hasHardBoundaryBefore());
+    }
+
+    @ParameterizedTest
+    @MethodSource("lexerFactories")
+    void regexLexersMarkHardBoundaryThroughSkippedWhitespace(LexerFactory factory) {
+        Lexer lexer = lexer(
+            factory,
+            regexp(Word.class, "[A-Za-z]+", false, 0),
+            regexp(Whitespace.class, "\\s+", true, 0)
+        );
+
+        List<Lexeme> lexemes = lexer.tokenize("alpha beta\ncharlie");
+
+        assertEquals(3, lexemes.size());
+        assertFalse(lexemes.get(0).hasHardBoundaryBefore());
+        assertFalse(lexemes.get(1).hasHardBoundaryBefore());
+        assertTrue(lexemes.get(2).hasHardBoundaryBefore());
+    }
+
+    @Test
+    void asciiWordCursorMarksHardBoundaryBeforeToken() {
+        AsciiWordLexer lexer = new AsciiWordLexer(
+            new LexerSpec(Arrays.asList(regexp(Word.class, "[A-Za-z]+", false, 0))),
+            Word.class
+        );
+        LexemeCursor cursor = lexer.cursor("alpha beta\ncharlie");
+
+        assertTrue(cursor.next());
+        assertEquals("alpha", cursor.getText());
+        assertFalse(cursor.hasHardBoundaryBefore());
+        assertTrue(cursor.next());
+        assertEquals("beta", cursor.getText());
+        assertFalse(cursor.hasHardBoundaryBefore());
+        assertTrue(cursor.next());
+        assertEquals("charlie", cursor.getText());
+        assertTrue(cursor.hasHardBoundaryBefore());
+    }
+
     static Stream<LexerFactory> lexerFactories() {
         return Stream.of(
             new LexerFactory() {
@@ -382,5 +464,11 @@ class LexerTest {
     }
 
     static class Percent {
+    }
+
+    static class CapitalizedWord {
+    }
+
+    static class AllCapsWord {
     }
 }

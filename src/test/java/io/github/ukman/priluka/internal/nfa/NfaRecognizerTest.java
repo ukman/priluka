@@ -2,8 +2,10 @@ package io.github.ukman.priluka.internal.nfa;
 
 import io.github.ukman.priluka.ParseTrace;
 import io.github.ukman.priluka.Parser;
+import io.github.ukman.priluka.LexerEngine;
 import io.github.ukman.priluka.annotation.Keyword;
 import io.github.ukman.priluka.annotation.Keywords;
+import io.github.ukman.priluka.annotation.Occurrences;
 import io.github.ukman.priluka.annotation.Separator;
 import io.github.ukman.priluka.annotation.Terminal;
 import io.github.ukman.priluka.grammar.GrammarModel;
@@ -197,6 +199,80 @@ class NfaRecognizerTest {
     }
 
     @Test
+    void dfaFindsSameSpansAsNfaForBoundedRepetition() {
+        GrammarModel model = Parser.describe(BoundedNumberArray.class);
+        NfaRecognizer nfa = new NfaRecognizer(model);
+        DfaFindRecognizer dfa = dfaRecognizer(model);
+
+        List<NfaFindSpan> nfaResults = nfa.findSpans("1 2 3 4 5 6");
+        List<NfaFindSpan> dfaResults = dfa.findSpans("1 2 3 4 5 6");
+
+        assertSameSpans(nfaResults, dfaResults);
+        assertEquals(2, dfaResults.size());
+        assertEquals(0, dfaResults.get(0).getStart());
+        assertEquals(5, dfaResults.get(0).getEnd());
+        assertEquals(6, dfaResults.get(1).getStart());
+        assertEquals(11, dfaResults.get(1).getEnd());
+    }
+
+    @Test
+    void dfaFindsSameSpanAsNfaForLazyBoundedGap() {
+        GrammarModel model = Parser.init(LazyGap.class, Initial.class, Word.class, Duration.class).describe(LazyGap.class);
+        NfaRecognizer nfa = new NfaRecognizer(model);
+        DfaFindRecognizer dfa = dfaRecognizer(model);
+
+        List<NfaFindSpan> nfaResults = nfa.findSpans("noise initial period of duration later");
+        List<NfaFindSpan> dfaResults = dfa.findSpans("noise initial period of duration later");
+
+        assertSameSpans(nfaResults, dfaResults);
+        assertEquals(1, dfaResults.size());
+        assertEquals(6, dfaResults.get(0).getStart());
+        assertEquals(32, dfaResults.get(0).getEnd());
+    }
+
+    @Test
+    void dfaFindsRuntimeOverlappingRegexTerminalSets() {
+        GrammarModel model = Parser
+            .init(
+                OrganizationEvidence.class,
+                ContractingAuthorityLine.class,
+                OrganizationName.class,
+                NameToken.class,
+                Contracting.class,
+                Authority.class,
+                Colon.class,
+                WordToken.class,
+                CapitalizedWord.class,
+                City.class,
+                Council.class,
+                SymbolToken.class
+            )
+            .describe(OrganizationEvidence.class);
+        LexerConfig lexerConfig = new LexerConfig(
+            new Class<?>[] {WordToken.class, SymbolToken.class},
+            new Class<?>[0],
+            LexerEngine.JAVA_REGEX,
+            false,
+            true,
+            true
+        );
+        NfaRecognizer nfa = new NfaRecognizer(new NfaCompiler(model).compile(), lexerConfig.createLexer(model));
+        DfaFindRecognizer dfa = new DfaFindRecognizer(
+            new NfaCompiler(model).compile(),
+            lexerConfig.createLexer(model),
+            lexerConfig.configuredTerminals(model)
+        );
+
+        List<NfaFindSpan> nfaResults = nfa.findSpans("noise Contracting Authority: Birmingham City Council.");
+        List<NfaFindSpan> dfaResults = dfa.findSpans("noise Contracting Authority: Birmingham City Council.");
+
+        assertSameSpans(nfaResults, dfaResults);
+        assertEquals(1, dfaResults.size());
+        assertEquals(6, dfaResults.get(0).getStart());
+        assertEquals(52, dfaResults.get(0).getEnd());
+    }
+
+    @Test
     void dfaFindBuildsTraceByReparsingMatchedSpan() {
         GrammarModel model = Parser.describe(PlusNumber.class);
         DfaFindRecognizer dfa = dfaRecognizer(model);
@@ -251,6 +327,25 @@ class NfaRecognizerTest {
     }
 
     @Test
+    void boundedRepeatLeavesGapLazilyWhenNextPartCanMatch() {
+        Parser.InitializedParser parser = Parser.init(LazyGap.class, Initial.class, Word.class, Duration.class);
+
+        LazyGap result = parser.parse(LazyGap.class, "initial period of duration");
+
+        assertEquals(2, result.gap.length);
+        assertEquals("period", result.gap[0].text);
+        assertEquals("of", result.gap[1].text);
+    }
+
+    @Test
+    void boundedRepeatRejectsMoreThanMaxElements() {
+        NfaRecognizer recognizer = recognizer(BoundedNumberArray.class);
+
+        assertEquals(true, recognizer.recognizes("1 2 3"));
+        assertEquals(false, recognizer.recognizes("1 2 3 4"));
+    }
+
+    @Test
     void findKeepsLongestMatchForFirstAcceptedStart() {
         NfaRecognizer recognizer = recognizer(NumberArray.class);
 
@@ -271,6 +366,14 @@ class NfaRecognizerTest {
             LexerConfig.DEFAULT.createLexer(model),
             LexerConfig.DEFAULT.configuredTerminals(model)
         );
+    }
+
+    private void assertSameSpans(List<NfaFindSpan> expected, List<NfaFindSpan> actual) {
+        assertEquals(expected.size(), actual.size());
+        for (int i = 0; i < expected.size(); i++) {
+            assertEquals(expected.get(i).getStart(), actual.get(i).getStart());
+            assertEquals(expected.get(i).getEnd(), actual.get(i).getEnd());
+        }
     }
 
     static class Point {
@@ -299,6 +402,89 @@ class NfaRecognizerTest {
         public NumberArray(@Separator(Comma.class) Integer[] numbers) {
             this.numbers = numbers;
         }
+    }
+
+    static class BoundedNumberArray {
+        public BoundedNumberArray(@Occurrences(min = 1, max = 3) Integer[] numbers) {
+        }
+    }
+
+    static class LazyGap {
+        final Word[] gap;
+
+        public LazyGap(Initial initial, @Occurrences(max = 6) Word[] gap, Duration duration) {
+            this.gap = gap;
+        }
+    }
+
+    @Keyword("initial")
+    static class Initial {
+    }
+
+    @Keyword("duration")
+    static class Duration {
+    }
+
+    @Terminal(regexp = "[A-Za-z]+")
+    static class Word {
+        final String text;
+
+        public Word(String text) {
+            this.text = text;
+        }
+    }
+
+    interface OrganizationExpression {
+    }
+
+    static class OrganizationEvidence {
+        OrganizationEvidence(OrganizationExpression expression) {
+        }
+    }
+
+    static class ContractingAuthorityLine implements OrganizationExpression {
+        ContractingAuthorityLine(Contracting contracting, Authority authority, Colon colon, OrganizationName name) {
+        }
+    }
+
+    static class OrganizationName {
+        OrganizationName(@Occurrences(min = 1, max = 4) NameToken[] tokens) {
+        }
+    }
+
+    interface NameToken {
+    }
+
+    @Terminal(regexp = "[A-Za-z]+")
+    static class WordToken {
+    }
+
+    @Terminal(regexp = "[^A-Za-z0-9\\s]")
+    static class SymbolToken {
+    }
+
+    @Terminal(regexp = "[A-Z][A-Za-z0-9]*")
+    static class CapitalizedWord implements NameToken {
+    }
+
+    @Keyword(value = "contracting", caseSensitive = false)
+    static class Contracting {
+    }
+
+    @Keyword(value = "authority", caseSensitive = false)
+    static class Authority {
+    }
+
+    @Keyword(":")
+    static class Colon {
+    }
+
+    @Keyword(value = "city", caseSensitive = false)
+    static class City implements NameToken {
+    }
+
+    @Keyword(value = "council", caseSensitive = false)
+    static class Council implements NameToken {
     }
 
     static class PlusMinus {

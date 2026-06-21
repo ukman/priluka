@@ -37,6 +37,7 @@ public final class JavaRegexLexer implements Lexer {
         List<Lexeme> lexemes = new ArrayList<Lexeme>();
         Matcher matcher = masterPattern.getPattern().matcher(input);
         int position = 0;
+        boolean hardBoundaryBefore = false;
         while (matcher.find()) {
             if (matcher.start() != position) {
                 throw new LexerException("Unexpected input at offset " + position + ": " + input.charAt(position));
@@ -54,9 +55,12 @@ public final class JavaRegexLexer implements Lexer {
 
             List<TerminalSymbol> terminalTypes = terminalTypes(branch, text);
             boolean skipped = allSkipped(terminalTypes);
-            Lexeme lexeme = new Lexeme(position, text.length(), text, terminalTypes, skipped);
+            Lexeme lexeme = new Lexeme(position, text.length(), text, terminalTypes, skipped, hardBoundaryBefore);
             if (!skipped) {
                 lexemes.add(lexeme);
+                hardBoundaryBefore = false;
+            } else if (hasHardBoundary(text)) {
+                hardBoundaryBefore = true;
             }
             position += text.length();
         }
@@ -156,6 +160,16 @@ public final class JavaRegexLexer implements Lexer {
             }
         }
         return true;
+    }
+
+    private boolean hasHardBoundary(String text) {
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c == '\n' || c == '\r' || c == '\t' || c == '\f') {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Map<TerminalSymbol, Pattern> compileTerminalPatterns(List<TerminalSymbol> terminals) {

@@ -127,6 +127,7 @@ public final class AsciiWordLexer implements StreamingLexer {
         private int start = -1;
         private int end = -1;
         private String text;
+        private boolean hardBoundaryBefore;
 
         private AsciiWordCursor(String input) {
             this.input = input;
@@ -135,16 +136,21 @@ public final class AsciiWordLexer implements StreamingLexer {
         @Override
         public boolean next() {
             text = null;
+            boolean boundary = false;
             while (position < input.length()) {
                 char c = input.charAt(position);
                 if (isAsciiLetter(c)) {
                     start = position;
+                    hardBoundaryBefore = boundary;
                     position++;
                     while (position < input.length() && isAsciiLetter(input.charAt(position))) {
                         position++;
                     }
                     end = position;
                     return true;
+                }
+                if (isHardBoundary(c)) {
+                    boundary = true;
                 }
                 position++;
             }
@@ -167,6 +173,11 @@ public final class AsciiWordLexer implements StreamingLexer {
                 text = input.substring(start, end);
             }
             return text;
+        }
+
+        @Override
+        public boolean hasHardBoundaryBefore() {
+            return hardBoundaryBefore;
         }
 
         @Override
@@ -210,6 +221,10 @@ public final class AsciiWordLexer implements StreamingLexer {
             return (char) (c + ('a' - 'A'));
         }
         return c;
+    }
+
+    private boolean isHardBoundary(char c) {
+        return c == '\n' || c == '\r' || c == '\t' || c == '\f';
     }
 
     private static final class KeywordTerminal {

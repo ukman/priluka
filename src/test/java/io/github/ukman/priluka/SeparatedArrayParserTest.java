@@ -2,6 +2,7 @@ package io.github.ukman.priluka;
 
 import io.github.ukman.priluka.annotation.Keyword;
 import io.github.ukman.priluka.annotation.OneOrMore;
+import io.github.ukman.priluka.annotation.Occurrences;
 import io.github.ukman.priluka.annotation.Separator;
 import org.junit.jupiter.api.Test;
 
@@ -63,6 +64,39 @@ class SeparatedArrayParserTest {
             .parse(SpaceSeparatedNumbers.class, "7 8 9 10");
 
         assertArrayEquals(new Integer[] {7, 8, 9, 10}, numbers.values);
+    }
+
+    @Test
+    void parsesBoundedWhitespaceSeparatedIntegerArray() {
+        BoundedNumbers numbers = Parser
+            .init(BoundedNumbers.class)
+            .parse(BoundedNumbers.class, "7 8 9");
+
+        assertArrayEquals(new Integer[] {7, 8, 9}, numbers.values);
+    }
+
+    @Test
+    void rejectsTooFewBoundedWhitespaceSeparatedIntegers() {
+        assertThrows(ParseException.class, new ThrowingRunnable() {
+            @Override
+            public void execute() {
+                Parser
+                    .init(BoundedNumbers.class)
+                    .parse(BoundedNumbers.class, "7");
+            }
+        });
+    }
+
+    @Test
+    void rejectsTooManyBoundedWhitespaceSeparatedIntegers() {
+        assertThrows(ParseException.class, new ThrowingRunnable() {
+            @Override
+            public void execute() {
+                Parser
+                    .init(BoundedNumbers.class)
+                    .parse(BoundedNumbers.class, "7 8 9 10");
+            }
+        });
     }
 
     @Test
@@ -158,6 +192,14 @@ class SeparatedArrayParserTest {
         final Integer[] values;
 
         SpaceSeparatedNumbers(Integer[] values) {
+            this.values = values;
+        }
+    }
+
+    static class BoundedNumbers {
+        final Integer[] values;
+
+        BoundedNumbers(@Occurrences(min = 2, max = 3) Integer[] values) {
             this.values = values;
         }
     }

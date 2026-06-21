@@ -219,9 +219,13 @@ public final class PredictionTable {
     private boolean isPartNullable(ProductionPart part) {
         switch (part.getQuantifier()) {
             case OPTIONAL:
-            case ZERO_OR_MORE:
                 return true;
+            case ZERO_OR_MORE:
             case ONE_OR_MORE:
+                if (part.getMinOccurrences() == 0) {
+                    return true;
+                }
+                return isNullable(part.getSymbolType());
             case ONE:
             default:
                 return isNullable(part.getSymbolType());

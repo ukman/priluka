@@ -79,7 +79,7 @@ public final class NfaRecognizer {
                 for (NfaTransition transition : transitions) {
                     if (
                         transition.getKind() == NfaTransition.Kind.TERMINAL
-                            && lexeme.hasTerminal(transition.getSymbolType())
+                            && matchesTerminalTransition(transition, lexeme)
                     ) {
                         next.add(configuration.advance(transition, lexeme, i, true));
                     }
@@ -180,7 +180,7 @@ public final class NfaRecognizer {
                 for (NfaTransition transition : transitions) {
                     if (
                         transition.getKind() == NfaTransition.Kind.TERMINAL
-                            && cursor.hasTerminal(transition.getSymbolType())
+                            && matchesTerminalTransition(transition, cursor)
                     ) {
                         next.add(configuration.advance(transition, cursor, tokenIndex));
                     }
@@ -231,7 +231,7 @@ public final class NfaRecognizer {
                 for (NfaTransition transition : transitions) {
                     if (
                         transition.getKind() == NfaTransition.Kind.TERMINAL
-                            && lexeme.hasTerminal(transition.getSymbolType())
+                            && matchesTerminalTransition(transition, lexeme)
                     ) {
                         next.add(configuration.advance(transition, lexeme, i, false));
                     }
@@ -293,6 +293,26 @@ public final class NfaRecognizer {
             }
         }
         return result;
+    }
+
+    private boolean matchesTerminalTransition(NfaTransition transition, Lexeme lexeme) {
+        if (!lexeme.hasTerminal(transition.getSymbolType())) {
+            return false;
+        }
+        return !transitionRejectsHardBoundary(transition, lexeme.hasHardBoundaryBefore());
+    }
+
+    private boolean matchesTerminalTransition(NfaTransition transition, LexemeCursor cursor) {
+        if (!cursor.hasTerminal(transition.getSymbolType())) {
+            return false;
+        }
+        return !transitionRejectsHardBoundary(transition, cursor.hasHardBoundaryBefore());
+    }
+
+    private boolean transitionRejectsHardBoundary(NfaTransition transition, boolean hardBoundaryBefore) {
+        return hardBoundaryBefore
+            && transition.getPart() != null
+            && transition.getPart().isNoHardBoundary();
     }
 
     private List<Configuration> epsilonClosure(List<Configuration> seed, boolean captureTrace) {

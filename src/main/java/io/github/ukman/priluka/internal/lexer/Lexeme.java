@@ -12,13 +12,26 @@ public final class Lexeme {
     private final String text;
     private final List<TerminalSymbol> terminalTypes;
     private final boolean skipped;
+    private final boolean hardBoundaryBefore;
 
     public Lexeme(int start, int len, String text, List<TerminalSymbol> terminalTypes, boolean skipped) {
+        this(start, len, text, terminalTypes, skipped, false);
+    }
+
+    public Lexeme(
+        int start,
+        int len,
+        String text,
+        List<TerminalSymbol> terminalTypes,
+        boolean skipped,
+        boolean hardBoundaryBefore
+    ) {
         this.start = start;
         this.len = len;
         this.text = text;
         this.terminalTypes = Collections.unmodifiableList(new ArrayList<TerminalSymbol>(terminalTypes));
         this.skipped = skipped;
+        this.hardBoundaryBefore = hardBoundaryBefore;
     }
 
     public int getStart() {
@@ -39,6 +52,10 @@ public final class Lexeme {
 
     public boolean isSkipped() {
         return skipped;
+    }
+
+    public boolean hasHardBoundaryBefore() {
+        return hardBoundaryBefore;
     }
 
     public boolean hasTerminal(Class<?> terminalType) {

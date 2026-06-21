@@ -79,9 +79,9 @@ public final class NfaCompiler {
         } else if (part.getQuantifier() == ProductionPart.Quantifier.OPTIONAL) {
             compileOptionalPart(part, from, to);
         } else if (part.getQuantifier() == ProductionPart.Quantifier.ZERO_OR_MORE) {
-            compilePlainRepeatedPart(part, from, to, true);
+            compilePlainRepeatedPart(part, from, to);
         } else if (part.getQuantifier() == ProductionPart.Quantifier.ONE_OR_MORE) {
-            compilePlainRepeatedPart(part, from, to, false);
+            compilePlainRepeatedPart(part, from, to);
         }
     }
 
@@ -95,10 +95,18 @@ public final class NfaCompiler {
         add(NfaTransition.endOptionalPresent(presentEnd, to, part));
     }
 
-    private void compilePlainRepeatedPart(ProductionPart part, NfaState from, NfaState to, boolean allowEmpty) {
+    private void compilePlainRepeatedPart(ProductionPart part, NfaState from, NfaState to) {
+        if (part.hasBoundedOccurrences()) {
+            compileBoundedPlainRepeatedPart(part, from, to);
+            return;
+        }
+        if (part.getMinOccurrences() > 1) {
+            compileMinBoundedUnboundedPlainRepeatedPart(part, from, to);
+            return;
+        }
         NfaState repeatStart = newState();
         add(NfaTransition.beginRepeat(from, repeatStart, part));
-        if (allowEmpty) {
+        if (part.getMinOccurrences() == 0) {
             add(NfaTransition.endRepeat(repeatStart, to, part));
         }
 
@@ -111,10 +119,56 @@ public final class NfaCompiler {
         add(NfaTransition.endRepeat(afterAppend, to, part));
     }
 
+    private void compileBoundedPlainRepeatedPart(ProductionPart part, NfaState from, NfaState to) {
+        NfaState current = newState();
+        add(NfaTransition.beginRepeat(from, current, part));
+        for (int count = 0; count <= part.getMaxOccurrences(); count++) {
+            if (count >= part.getMinOccurrences()) {
+                add(NfaTransition.endRepeat(current, to, part));
+            }
+            if (count == part.getMaxOccurrences()) {
+                break;
+            }
+            NfaState itemEnd = newState();
+            compileSymbol(part.getSymbolType(), part, current, itemEnd);
+            NfaState afterAppend = newState();
+            add(NfaTransition.appendRepeatElement(itemEnd, afterAppend, part));
+            current = afterAppend;
+        }
+    }
+
+    private void compileMinBoundedUnboundedPlainRepeatedPart(ProductionPart part, NfaState from, NfaState to) {
+        NfaState current = newState();
+        add(NfaTransition.beginRepeat(from, current, part));
+        for (int count = 0; count < part.getMinOccurrences(); count++) {
+            NfaState itemEnd = newState();
+            compileSymbol(part.getSymbolType(), part, current, itemEnd);
+            NfaState afterAppend = newState();
+            add(NfaTransition.appendRepeatElement(itemEnd, afterAppend, part));
+            current = afterAppend;
+        }
+
+        add(NfaTransition.endRepeat(current, to, part));
+        NfaState itemEnd = newState();
+        compileSymbol(part.getSymbolType(), part, current, itemEnd);
+        NfaState afterAppend = newState();
+        add(NfaTransition.appendRepeatElement(itemEnd, afterAppend, part));
+        add(NfaTransition.endRepeat(afterAppend, to, part));
+        add(NfaTransition.epsilon(afterAppend, current));
+    }
+
     private void compileSeparatedPart(ProductionPart part, NfaState from, NfaState to) {
+        if (part.hasBoundedOccurrences()) {
+            compileBoundedSeparatedPart(part, from, to);
+            return;
+        }
+        if (part.getMinOccurrences() > 1) {
+            compileMinBoundedUnboundedSeparatedPart(part, from, to);
+            return;
+        }
         NfaState repeatStart = newState();
         add(NfaTransition.beginRepeat(from, repeatStart, part));
-        if (part.getQuantifier() == ProductionPart.Quantifier.ZERO_OR_MORE) {
+        if (part.getMinOccurrences() == 0) {
             add(NfaTransition.endRepeat(repeatStart, to, part));
         }
 
@@ -134,6 +188,55 @@ public final class NfaCompiler {
         NfaState afterNextItem = newState();
         compileSymbol(part.getSymbolType(), part, afterSeparator, afterNextItem);
         add(NfaTransition.appendRepeatElement(afterNextItem, afterAppend, part));
+    }
+
+    private void compileBoundedSeparatedPart(ProductionPart part, NfaState from, NfaState to) {
+        NfaState current = newState();
+        add(NfaTransition.beginRepeat(from, current, part));
+        for (int count = 0; count <= part.getMaxOccurrences(); count++) {
+            if (count >= part.getMinOccurrences()) {
+                add(NfaTransition.endRepeat(current, to, part));
+            }
+            if (count == part.getMaxOccurrences()) {
+                break;
+            }
+            if (count == 0) {
+                current = compileSeparatedItem(part, current);
+            } else {
+                current = compileSeparatedTailItem(part, current, to, count);
+            }
+        }
+    }
+
+    private void compileMinBoundedUnboundedSeparatedPart(ProductionPart part, NfaState from, NfaState to) {
+        NfaState current = newState();
+        add(NfaTransition.beginRepeat(from, current, part));
+        current = compileSeparatedItem(part, current);
+        for (int count = 1; count < part.getMinOccurrences(); count++) {
+            current = compileSeparatedTailItem(part, current, to, count);
+        }
+
+        add(NfaTransition.endRepeat(current, to, part));
+        NfaState afterAppend = compileSeparatedTailItem(part, current, to, part.getMinOccurrences());
+        add(NfaTransition.endRepeat(afterAppend, to, part));
+        add(NfaTransition.epsilon(afterAppend, current));
+    }
+
+    private NfaState compileSeparatedItem(ProductionPart part, NfaState from) {
+        NfaState afterItem = newState();
+        compileSymbol(part.getSymbolType(), part, from, afterItem);
+        NfaState afterAppend = newState();
+        add(NfaTransition.appendRepeatElement(afterItem, afterAppend, part));
+        return afterAppend;
+    }
+
+    private NfaState compileSeparatedTailItem(ProductionPart part, NfaState from, NfaState to, int count) {
+        NfaState afterSeparator = newState();
+        compileSymbol(part.getSeparatorType(), part, from, afterSeparator);
+        if (part.isTrailingSeparator() && count >= part.getMinOccurrences()) {
+            add(NfaTransition.endRepeat(afterSeparator, to, part));
+        }
+        return compileSeparatedItem(part, afterSeparator);
     }
 
     private void compileSymbol(Class<?> symbolType, ProductionPart part, NfaState from, NfaState to) {

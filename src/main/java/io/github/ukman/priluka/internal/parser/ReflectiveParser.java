@@ -317,7 +317,7 @@ public final class ReflectiveParser implements ParseEngine {
         active.add(new RepeatedState(position, 0, new ArrayList<ParseTraceEvent>()));
 
         List<ParseResult> results = new ArrayList<ParseResult>();
-        if (part.getQuantifier() == ProductionPart.Quantifier.ZERO_OR_MORE) {
+        if (part.getMinOccurrences() == 0) {
             List<ParseTraceEvent> emptyEvents = new ArrayList<ParseTraceEvent>();
             emptyEvents.add(ParseTraceEvent.beginRepeat(part.getSymbolName()));
             emptyEvents.add(ParseTraceEvent.endRepeat(part.getSymbolName(), 0));
@@ -336,8 +336,15 @@ public final class ReflectiveParser implements ParseEngine {
                     List<ParseTraceEvent> events = new ArrayList<ParseTraceEvent>(state.events);
                     events.addAll(itemResult.events);
                     events.add(ParseTraceEvent.appendRepeatElement(part.getSymbolName()));
-                    results.add(new ParseResult(itemResult.position, repeatEvents(part.getSymbolName(), events, count)));
-                    next.add(new RepeatedState(itemResult.position, count, events));
+                    if (count >= part.getMinOccurrences()) {
+                        results.add(new ParseResult(
+                            itemResult.position,
+                            repeatEvents(part.getSymbolName(), events, count)
+                        ));
+                    }
+                    if (canRepeatAgain(part, count)) {
+                        next.add(new RepeatedState(itemResult.position, count, events));
+                    }
                 }
             }
             active = next;
@@ -352,7 +359,7 @@ public final class ReflectiveParser implements ParseEngine {
         int position
     ) {
         List<ParseResult> results = new ArrayList<ParseResult>();
-        if (part.getQuantifier() == ProductionPart.Quantifier.ZERO_OR_MORE) {
+        if (part.getMinOccurrences() == 0) {
             List<ParseTraceEvent> emptyEvents = new ArrayList<ParseTraceEvent>();
             emptyEvents.add(ParseTraceEvent.beginRepeat(part.getSymbolName()));
             emptyEvents.add(ParseTraceEvent.endRepeat(part.getSymbolName(), 0));
@@ -360,16 +367,22 @@ public final class ReflectiveParser implements ParseEngine {
         }
 
         List<RepeatedState> active = new ArrayList<RepeatedState>();
-        List<ParseResult> firstItems = parseSymbol(part.getSymbolType(), lexemes, position);
-        for (ParseResult firstItem : firstItems) {
-            if (firstItem.position == position) {
-                continue;
+        if (canRepeatAgain(part, 0)) {
+            List<ParseResult> firstItems = parseSymbol(part.getSymbolType(), lexemes, position);
+            for (ParseResult firstItem : firstItems) {
+                if (firstItem.position == position) {
+                    continue;
+                }
+                List<ParseTraceEvent> events = new ArrayList<ParseTraceEvent>();
+                events.addAll(firstItem.events);
+                events.add(ParseTraceEvent.appendRepeatElement(part.getSymbolName()));
+                if (part.getMinOccurrences() <= 1) {
+                    results.add(new ParseResult(firstItem.position, repeatEvents(part.getSymbolName(), events, 1)));
+                }
+                if (canRepeatAgain(part, 1)) {
+                    active.add(new RepeatedState(firstItem.position, 1, events));
+                }
             }
-            List<ParseTraceEvent> events = new ArrayList<ParseTraceEvent>();
-            events.addAll(firstItem.events);
-            events.add(ParseTraceEvent.appendRepeatElement(part.getSymbolName()));
-            results.add(new ParseResult(firstItem.position, repeatEvents(part.getSymbolName(), events, 1)));
-            active.add(new RepeatedState(firstItem.position, 1, events));
         }
 
         while (!active.isEmpty()) {
@@ -384,10 +397,12 @@ public final class ReflectiveParser implements ParseEngine {
                     if (itemResults.isEmpty() && part.isTrailingSeparator()) {
                         List<ParseTraceEvent> events = new ArrayList<ParseTraceEvent>(state.events);
                         events.addAll(separator.events);
-                        results.add(new ParseResult(
-                            separator.position,
-                            repeatEvents(part.getSymbolName(), events, state.count)
-                        ));
+                        if (state.count >= part.getMinOccurrences()) {
+                            results.add(new ParseResult(
+                                separator.position,
+                                repeatEvents(part.getSymbolName(), events, state.count)
+                            ));
+                        }
                     }
                     for (ParseResult itemResult : itemResults) {
                         if (itemResult.position == separator.position) {
@@ -398,8 +413,15 @@ public final class ReflectiveParser implements ParseEngine {
                         events.addAll(separator.events);
                         events.addAll(itemResult.events);
                         events.add(ParseTraceEvent.appendRepeatElement(part.getSymbolName()));
-                        results.add(new ParseResult(itemResult.position, repeatEvents(part.getSymbolName(), events, count)));
-                        next.add(new RepeatedState(itemResult.position, count, events));
+                        if (count >= part.getMinOccurrences()) {
+                            results.add(new ParseResult(
+                                itemResult.position,
+                                repeatEvents(part.getSymbolName(), events, count)
+                            ));
+                        }
+                        if (canRepeatAgain(part, count)) {
+                            next.add(new RepeatedState(itemResult.position, count, events));
+                        }
                     }
                 }
             }
@@ -414,6 +436,10 @@ public final class ReflectiveParser implements ParseEngine {
             return parseTerminal(type, lexemes, position);
         }
         return parseNonterminal(type, lexemes, position);
+    }
+
+    private boolean canRepeatAgain(ProductionPart part, int count) {
+        return part.getMaxOccurrences() < 0 || count < part.getMaxOccurrences();
     }
 
     private List<ParseTraceEvent> repeatEvents(String symbolName, List<ParseTraceEvent> bodyEvents, int count) {

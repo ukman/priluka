@@ -3,7 +3,9 @@ package io.github.ukman.priluka.internal;
 import io.github.ukman.priluka.GrammarException;
 import io.github.ukman.priluka.annotation.Keyword;
 import io.github.ukman.priluka.annotation.Keywords;
+import io.github.ukman.priluka.annotation.NoHardBoundary;
 import io.github.ukman.priluka.annotation.OneOrMore;
+import io.github.ukman.priluka.annotation.Occurrences;
 import io.github.ukman.priluka.annotation.Separator;
 import io.github.ukman.priluka.annotation.Skip;
 import io.github.ukman.priluka.annotation.Terminal;
@@ -111,6 +113,7 @@ public final class GrammarModelBuilder {
     private ProductionPart toPart(Parameter parameter) {
         Separator separator = parameter.getAnnotation(Separator.class);
         boolean oneOrMore = parameter.isAnnotationPresent(OneOrMore.class);
+        Occurrences occurrences = parameter.getAnnotation(Occurrences.class);
         Class<?> rawType = parameter.getType();
 
         if (rawType.isArray()) {
@@ -118,9 +121,17 @@ public final class GrammarModelBuilder {
             addSymbol(componentType);
             if (separator != null) {
                 addSymbol(separator.value());
-                return ProductionPart.separated(componentType, separator.value(), oneOrMore, separator.trailing());
+                OccurrenceBounds bounds = occurrenceBounds(parameter, oneOrMore, occurrences);
+                return applyPartAnnotations(parameter, ProductionPart.separated(
+                    componentType,
+                    separator.value(),
+                    bounds.min,
+                    bounds.max,
+                    separator.trailing()
+                ));
             }
-            return ProductionPart.repeated(componentType, oneOrMore);
+            OccurrenceBounds bounds = occurrenceBounds(parameter, oneOrMore, occurrences);
+            return applyPartAnnotations(parameter, ProductionPart.repeated(componentType, bounds.min, bounds.max));
         }
 
         if (Collection.class.isAssignableFrom(rawType)) {
@@ -128,23 +139,60 @@ public final class GrammarModelBuilder {
             addSymbol(elementType);
             if (separator != null) {
                 addSymbol(separator.value());
-                return ProductionPart.separated(elementType, separator.value(), oneOrMore, separator.trailing());
+                OccurrenceBounds bounds = occurrenceBounds(parameter, oneOrMore, occurrences);
+                return applyPartAnnotations(parameter, ProductionPart.separated(
+                    elementType,
+                    separator.value(),
+                    bounds.min,
+                    bounds.max,
+                    separator.trailing()
+                ));
             }
-            return ProductionPart.repeated(elementType, oneOrMore);
+            OccurrenceBounds bounds = occurrenceBounds(parameter, oneOrMore, occurrences);
+            return applyPartAnnotations(parameter, ProductionPart.repeated(elementType, bounds.min, bounds.max));
         }
 
         if (java.util.Optional.class.equals(rawType)) {
             Class<?> elementType = optionalElementType(parameter);
             addSymbol(elementType);
-            return ProductionPart.optional(elementType);
+            return applyPartAnnotations(parameter, ProductionPart.optional(elementType));
         }
 
         if (separator != null) {
             throw new GrammarException("@Separator can only be used on array or collection parameters: " + parameter);
         }
+        if (occurrences != null) {
+            throw new GrammarException("@Occurrences can only be used on array or collection parameters: " + parameter);
+        }
 
         addSymbol(rawType);
-        return ProductionPart.one(rawType);
+        return applyPartAnnotations(parameter, ProductionPart.one(rawType));
+    }
+
+    private ProductionPart applyPartAnnotations(Parameter parameter, ProductionPart part) {
+        if (parameter.isAnnotationPresent(NoHardBoundary.class)) {
+            return part.withNoHardBoundary();
+        }
+        return part;
+    }
+
+    private OccurrenceBounds occurrenceBounds(Parameter parameter, boolean oneOrMore, Occurrences occurrences) {
+        int min = oneOrMore ? 1 : 0;
+        int max = -1;
+        if (occurrences != null) {
+            min = occurrences.min();
+            max = occurrences.max();
+        }
+        if (min < 0) {
+            throw new GrammarException("@Occurrences min must be >= 0: " + parameter);
+        }
+        if (max < -1) {
+            throw new GrammarException("@Occurrences max must be >= -1: " + parameter);
+        }
+        if (max >= 0 && max < min) {
+            throw new GrammarException("@Occurrences max must be >= min: " + parameter);
+        }
+        return new OccurrenceBounds(min, max);
     }
 
     private void addSymbol(Class<?> type) {
@@ -318,6 +366,16 @@ public final class GrammarModelBuilder {
             throw new GrammarException("Optional element type must be a class: " + parameter);
         }
         return (Class<?>) argument;
+    }
+
+    private static final class OccurrenceBounds {
+        private final int min;
+        private final int max;
+
+        private OccurrenceBounds(int min, int max) {
+            this.min = min;
+            this.max = max;
+        }
     }
 
     private void sortClasses(List<Class<?>> classes) {

@@ -9,5 +9,7 @@ public interface LexemeCursor {
 
     String getText();
 
+    boolean hasHardBoundaryBefore();
+
     boolean hasTerminal(Class<?> terminalType);
 }

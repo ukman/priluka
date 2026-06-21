@@ -13,6 +13,9 @@ public final class AsciiTextLexer implements Lexer {
     private final List<TerminalSymbol> wordCarriers = new ArrayList<TerminalSymbol>();
     private final List<TerminalSymbol> numberCarriers = new ArrayList<TerminalSymbol>();
     private final List<TerminalSymbol> symbolCarriers = new ArrayList<TerminalSymbol>();
+    private final List<CheckedTerminal> checkedWordTerminals = new ArrayList<CheckedTerminal>();
+    private final List<CheckedTerminal> checkedNumberTerminals = new ArrayList<CheckedTerminal>();
+    private final List<CheckedTerminal> checkedSymbolTerminals = new ArrayList<CheckedTerminal>();
     private final Map<String, List<TerminalSymbol>> exactKeywords =
         new LinkedHashMap<String, List<TerminalSymbol>>();
     private final Map<String, List<TerminalSymbol>> caseInsensitiveKeywords =
@@ -32,9 +35,13 @@ public final class AsciiTextLexer implements Lexer {
     public List<Lexeme> tokenize(String input) {
         List<Lexeme> lexemes = new ArrayList<Lexeme>();
         int position = 0;
+        boolean hardBoundaryBefore = false;
         while (position < input.length()) {
             char c = input.charAt(position);
             if (Character.isWhitespace(c)) {
+                if (isHardBoundary(c)) {
+                    hardBoundaryBefore = true;
+                }
                 position++;
                 continue;
             }
@@ -55,7 +62,8 @@ public final class AsciiTextLexer implements Lexer {
             }
 
             String text = input.substring(start, position);
-            lexemes.add(new Lexeme(start, position - start, text, terminalTypes(text, c), false));
+            lexemes.add(new Lexeme(start, position - start, text, terminalTypes(text, c), false, hardBoundaryBefore));
+            hardBoundaryBefore = false;
         }
         return lexemes;
     }
@@ -108,18 +116,31 @@ public final class AsciiTextLexer implements Lexer {
             return;
         }
 
-        boolean word = matches(terminal, "abc") && !matches(terminal, "123") && !matches(terminal, "@");
-        boolean number = matches(terminal, "123") && !matches(terminal, "abc") && !matches(terminal, "@");
-        boolean symbol = matches(terminal, "@") && !matches(terminal, "abc") && !matches(terminal, "123");
+        Pattern pattern = Pattern.compile(terminal.getPattern());
+        boolean word = matches(pattern, "abc") || matches(pattern, "Abc") || matches(pattern, "ABC");
+        boolean number = matches(pattern, "123") || matches(pattern, "0") || matches(pattern, "987654");
+        boolean symbol = matches(pattern, "@") || matches(pattern, ",") || matches(pattern, ".");
 
         if (word) {
-            wordCarriers.add(terminal);
+            if (matches(pattern, "abc") && matches(pattern, "Abc") && matches(pattern, "ABC")) {
+                wordCarriers.add(terminal);
+            } else {
+                checkedWordTerminals.add(new CheckedTerminal(terminal, pattern));
+            }
         }
         if (number) {
-            numberCarriers.add(terminal);
+            if (matches(pattern, "0") && matches(pattern, "123") && matches(pattern, "987654")) {
+                numberCarriers.add(terminal);
+            } else {
+                checkedNumberTerminals.add(new CheckedTerminal(terminal, pattern));
+            }
         }
         if (symbol) {
-            symbolCarriers.add(terminal);
+            if (matches(pattern, "@") && matches(pattern, ",") && matches(pattern, ".")) {
+                symbolCarriers.add(terminal);
+            } else {
+                checkedSymbolTerminals.add(new CheckedTerminal(terminal, pattern));
+            }
         }
     }
 
@@ -127,14 +148,21 @@ public final class AsciiTextLexer implements Lexer {
         return Pattern.compile(terminal.getPattern()).matcher(text).matches();
     }
 
+    private boolean matches(Pattern pattern, String text) {
+        return pattern.matcher(text).matches();
+    }
+
     private List<TerminalSymbol> terminalTypes(String text, char firstChar) {
         List<TerminalSymbol> terminalTypes = new ArrayList<TerminalSymbol>();
         if (isAsciiLetter(firstChar)) {
             terminalTypes.addAll(wordCarriers);
+            addCheckedMatches(terminalTypes, checkedWordTerminals, text);
         } else if (isAsciiDigit(firstChar)) {
             terminalTypes.addAll(numberCarriers);
+            addCheckedMatches(terminalTypes, checkedNumberTerminals, text);
         } else {
             terminalTypes.addAll(symbolCarriers);
+            addCheckedMatches(terminalTypes, checkedSymbolTerminals, text);
         }
 
         List<TerminalSymbol> exact = exactKeywords.get(text);
@@ -158,6 +186,19 @@ public final class AsciiTextLexer implements Lexer {
         }
     }
 
+    private void addCheckedMatches(
+        List<TerminalSymbol> terminalTypes,
+        List<CheckedTerminal> checkedTerminals,
+        String text
+    ) {
+        for (int i = 0; i < checkedTerminals.size(); i++) {
+            CheckedTerminal checked = checkedTerminals.get(i);
+            if (checked.pattern.matcher(text).matches() && !terminalTypes.contains(checked.terminal)) {
+                terminalTypes.add(checked.terminal);
+            }
+        }
+    }
+
     private String normalize(String text) {
         return text.toLowerCase(Locale.ROOT);
     }
@@ -168,5 +209,19 @@ public final class AsciiTextLexer implements Lexer {
 
     private boolean isAsciiDigit(char c) {
         return c >= '0' && c <= '9';
+    }
+
+    private boolean isHardBoundary(char c) {
+        return c == '\n' || c == '\r' || c == '\t' || c == '\f';
+    }
+
+    private static final class CheckedTerminal {
+        private final TerminalSymbol terminal;
+        private final Pattern pattern;
+
+        private CheckedTerminal(TerminalSymbol terminal, Pattern pattern) {
+            this.terminal = terminal;
+            this.pattern = pattern;
+        }
     }
 }

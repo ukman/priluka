@@ -41,6 +41,27 @@ class AnnotationContractTest {
     }
 
     @Test
+    void occurrencesMetadataIsAvailableOnConstructorParameters() throws NoSuchMethodException {
+        Constructor<BoundedNumbers> constructor = BoundedNumbers.class.getConstructor(Integer[].class);
+        Parameter parameter = constructor.getParameters()[0];
+
+        Occurrences occurrences = parameter.getAnnotation(Occurrences.class);
+
+        assertNotNull(occurrences);
+        assertEquals(1, occurrences.min());
+        assertEquals(3, occurrences.max());
+    }
+
+    @Test
+    void noHardBoundaryMetadataIsAvailableOnTypesAndConstructorParameters() throws NoSuchMethodException {
+        Constructor<BoundaryPhrase> constructor = BoundaryPhrase.class.getConstructor(String[].class);
+        Parameter parameter = constructor.getParameters()[0];
+
+        assertNotNull(BoundaryPhrase.class.getAnnotation(NoHardBoundary.class));
+        assertNotNull(parameter.getAnnotation(NoHardBoundary.class));
+    }
+
+    @Test
     void regexGroupCanUseIndexOrName() throws NoSuchMethodException {
         Constructor<DateToken> constructor = DateToken.class.getConstructor(int.class, int.class);
         Parameter[] parameters = constructor.getParameters();
@@ -63,6 +84,17 @@ class AnnotationContractTest {
 
     static class Numbers {
         public Numbers(@Separator(value = Comma.class, trailing = true) Integer[] numbers) {
+        }
+    }
+
+    static class BoundedNumbers {
+        public BoundedNumbers(@Occurrences(min = 1, max = 3) Integer[] numbers) {
+        }
+    }
+
+    @NoHardBoundary
+    static class BoundaryPhrase {
+        public BoundaryPhrase(@NoHardBoundary String[] words) {
         }
     }
 

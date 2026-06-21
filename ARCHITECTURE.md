@@ -101,7 +101,7 @@ Implemented:
 - built-in terminals for `Integer`, `Double`, and `Boolean`
 - explicit `@Terminal` and `@Keyword` terminals
 - enum keyword terminals through `@Keywords`
-- grammar model metadata for arrays, collections, `Optional<T>`, `@OneOrMore`, and `@Separator`
+- grammar model metadata for arrays, collections, `Optional<T>`, `@OneOrMore`, `@Occurrences`, and `@Separator`
 - internal lexer `Lexeme` model
 - internal master-regexp builder with lexer priority ordering
 - keyword branch quoting in master regexps
@@ -121,7 +121,7 @@ Implemented:
 - builder-configured extra lexer terminals and skip terminals
 - builder-configured lexer engine selection through `LexerEngine`
 - builder-configured regexp case mode, ambiguous terminal collection, and keyword carrier optimization
-- parsing for array parameters with repetition, `@OneOrMore`, and `@Separator`
+- parsing for array parameters with repetition, `@OneOrMore`, `@Occurrences`, and `@Separator`
 - parsing for `Optional<T>` and collection parameters with repetition
 
 Not implemented yet:
@@ -512,6 +512,7 @@ T[]                    => T*
 Collection<T>         => T*
 @OneOrMore T[]        => T+
 @OneOrMore Collection<T> => T+
+@Occurrences(min = 1, max = 5) T[] => T{1,5}
 @Separator(S.class) T[]  => empty | T (S T)*
 @OneOrMore @Separator(S.class) T[] => T (S T)*
 @Separator(value = S.class, trailing = true) T[] => empty | T (S T)* S?
@@ -520,9 +521,9 @@ Optional<T>             => T?
 ```
 
 Arrays and collections mean zero-or-more (`*`) by default. `@OneOrMore` turns a
-repeated parameter into one-or-more (`+`). `Optional<T>` means an optional
-grammar symbol. `@Separator` defines a terminal that separates repeated
-elements.
+repeated parameter into one-or-more (`+`). `@Occurrences` gives an explicit
+minimum and maximum occurrence count. `Optional<T>` means an optional grammar
+symbol. `@Separator` defines a terminal that separates repeated elements.
 
 Example:
 
@@ -561,6 +562,31 @@ Conceptually:
 ```text
 NonEmptyCompositeStatement => OpenBrace Statement+ CloseBrace
 ```
+
+For bounded repetitions:
+
+```java
+class InitialDurationEvidence {
+    public InitialDurationEvidence(
+        Initial initial,
+        @Occurrences(max = 6) Word[] gap,
+        Duration duration
+    ) {
+    }
+}
+```
+
+Conceptually:
+
+```text
+InitialDurationEvidence => Initial Word{0,6} Duration
+```
+
+Finite bounded repetitions are compiled lazily. Once the minimum count is
+satisfied, the automaton prefers leaving the repeated part before consuming
+another element. This is useful for evidence grammars: in `initial period of 7
+months`, a bounded `Word[] gap` should stop as soon as the following `Duration`
+can match, instead of greedily eating tokens that belong to `Duration`.
 
 For separated repetitions:
 

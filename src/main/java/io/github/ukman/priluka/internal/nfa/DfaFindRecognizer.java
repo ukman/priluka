@@ -26,6 +26,7 @@ public final class DfaFindRecognizer {
     private final List<List<NfaTransition>> outgoing;
     private final List<TerminalKey> alphabet;
     private final Map<TerminalKey, Integer> alphabetIds = new LinkedHashMap<TerminalKey, Integer>();
+    private final Set<Class<?>> usedTerminalTypes;
     private final List<DfaState> states = new ArrayList<DfaState>();
     private final Map<BitSetKey, Integer> stateIds = new LinkedHashMap<BitSetKey, Integer>();
     private final List<int[]> transitions = new ArrayList<int[]>();
@@ -42,7 +43,8 @@ public final class DfaFindRecognizer {
         this.lexer = lexer;
         this.traceRecognizer = new NfaRecognizer(graph, lexer);
         this.outgoing = outgoing(graph);
-        this.alphabet = alphabet(terminals, terminalTypes(graph));
+        this.usedTerminalTypes = terminalTypes(graph);
+        this.alphabet = alphabet(terminals, usedTerminalTypes);
         for (int i = 0; i < alphabet.size(); i++) {
             alphabetIds.put(alphabet.get(i), Integer.valueOf(i));
         }
@@ -66,9 +68,13 @@ public final class DfaFindRecognizer {
                 break;
             }
             ParseTrace trace = traceRecognizer.parseTrace(lexemes.subList(span.startTokenIndex, span.endTokenIndex));
-            results.add(new NfaFindResult(span.start, span.end, trace));
-            int nextTokenIndex = span.endTokenIndex;
-            tokenIndex = nextTokenIndex > tokenIndex ? nextTokenIndex : tokenIndex + 1;
+            if (trace != null) {
+                results.add(new NfaFindResult(span.start, span.end, trace));
+                int nextTokenIndex = span.endTokenIndex;
+                tokenIndex = nextTokenIndex > tokenIndex ? nextTokenIndex : tokenIndex + 1;
+            } else {
+                tokenIndex++;
+            }
         }
         return results;
     }
@@ -182,10 +188,41 @@ public final class DfaFindRecognizer {
             return value;
         }
         Integer id = alphabetIds.get(key);
-        int value = id == null ? -1 : id.intValue();
+        int value;
+        if (id == null) {
+            value = key.intersects(usedTerminalTypes) ? addRuntimeAlphabetKey(key) : -1;
+        } else {
+            value = id.intValue();
+        }
         runtimeAlphabetIds.put(key, Integer.valueOf(value));
         runtimeTerminalListIds.put(terminals, Integer.valueOf(value));
         return value;
+    }
+
+    private int addRuntimeAlphabetKey(TerminalKey key) {
+        Integer existing = alphabetIds.get(key);
+        if (existing != null) {
+            return existing.intValue();
+        }
+
+        int column = alphabet.size();
+        alphabet.add(key);
+        alphabetIds.put(key, Integer.valueOf(column));
+        growTransitionRows();
+        compileAllKnownAlphabetTransitions();
+        return column;
+    }
+
+    private void growTransitionRows() {
+        for (int i = 0; i < transitions.size(); i++) {
+            int[] old = transitions.get(i);
+            int[] grown = new int[alphabet.size()];
+            System.arraycopy(old, 0, grown, 0, old.length);
+            for (int j = old.length; j < grown.length; j++) {
+                grown[j] = -1;
+            }
+            transitions.set(i, grown);
+        }
     }
 
     private int state(BitSet nfaStates) {
@@ -199,6 +236,25 @@ public final class DfaFindRecognizer {
         stateIds.put(key, Integer.valueOf(id));
         transitions.add(emptyRow(alphabet.size()));
         return id;
+    }
+
+    private void compileTransition(int stateId, int alphabetId) {
+        int[] row = transitions.get(stateId);
+        if (row[alphabetId] >= 0) {
+            return;
+        }
+        BitSet move = move(states.get(stateId).nfaStates, alphabet.get(alphabetId));
+        if (!move.isEmpty()) {
+            row[alphabetId] = state(closure(move));
+        }
+    }
+
+    private void compileAllKnownAlphabetTransitions() {
+        for (int stateId = 0; stateId < states.size(); stateId++) {
+            for (int alphabetId = 0; alphabetId < alphabet.size(); alphabetId++) {
+                compileTransition(stateId, alphabetId);
+            }
+        }
     }
 
     private BitSet move(BitSet nfaStates, TerminalKey terminalKey) {
@@ -514,6 +570,15 @@ public final class DfaFindRecognizer {
 
         private boolean contains(Class<?> type) {
             return types.contains(type);
+        }
+
+        private boolean intersects(Set<Class<?>> candidates) {
+            for (int i = 0; i < types.size(); i++) {
+                if (candidates.contains(types.get(i))) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         @Override

@@ -30,6 +30,7 @@ public final class BricsLexer implements Lexer {
     public List<Lexeme> tokenize(String input) {
         List<Lexeme> lexemes = new ArrayList<Lexeme>();
         int position = 0;
+        boolean hardBoundaryBefore = false;
         while (position < input.length()) {
             TerminalMatch match = longestMatch(masterAutomata, input, position);
             if (match.length == 0) {
@@ -39,9 +40,12 @@ public final class BricsLexer implements Lexer {
             String text = input.substring(position, position + match.length);
             List<TerminalSymbol> terminalTypes = terminalTypes(match.automaton, text);
             boolean skipped = allSkipped(terminalTypes);
-            Lexeme lexeme = new Lexeme(position, text.length(), text, terminalTypes, skipped);
+            Lexeme lexeme = new Lexeme(position, text.length(), text, terminalTypes, skipped, hardBoundaryBefore);
             if (!skipped) {
                 lexemes.add(lexeme);
+                hardBoundaryBefore = false;
+            } else if (hasHardBoundary(text)) {
+                hardBoundaryBefore = true;
             }
             position += match.length;
         }
@@ -105,6 +109,16 @@ public final class BricsLexer implements Lexer {
             }
         }
         return true;
+    }
+
+    private boolean hasHardBoundary(String text) {
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c == '\n' || c == '\r' || c == '\t' || c == '\f') {
+                return true;
+            }
+        }
+        return false;
     }
 
     private List<TerminalAutomaton> compileAutomata(List<TerminalSymbol> terminals) {

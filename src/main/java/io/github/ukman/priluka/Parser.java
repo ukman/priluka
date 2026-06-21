@@ -2,6 +2,7 @@ package io.github.ukman.priluka;
 
 import io.github.ukman.priluka.grammar.GrammarModel;
 import io.github.ukman.priluka.grammar.NfaCompatibility;
+import io.github.ukman.priluka.annotation.NoHardBoundary;
 import io.github.ukman.priluka.internal.GrammarModelBuilder;
 import io.github.ukman.priluka.internal.lexer.LexerConfig;
 import io.github.ukman.priluka.internal.nfa.DfaFindRecognizer;
@@ -214,6 +215,18 @@ public final class Parser {
             if (result == null) {
                 return null;
             }
+            if (rejectHardBoundaryCrossing(start)) {
+                if (!crossesHardBoundary(input, result.getStart(), result.getEnd())) {
+                    return toFindResult(start, result);
+                }
+                List<NfaFindResult> results = findAllWithConfiguredEngine(start, model, input);
+                for (NfaFindResult candidate : results) {
+                    if (!crossesHardBoundary(input, candidate.getStart(), candidate.getEnd())) {
+                        return toFindResult(start, candidate);
+                    }
+                }
+                return null;
+            }
             return toFindResult(start, result);
         }
 
@@ -230,6 +243,10 @@ public final class Parser {
             List<NfaFindResult> nfaResults = findAllWithConfiguredEngine(start, model, input);
             List<ParseFindResult<S>> results = new ArrayList<ParseFindResult<S>>(nfaResults.size());
             for (NfaFindResult result : nfaResults) {
+                if (rejectHardBoundaryCrossing(start)
+                    && crossesHardBoundary(input, result.getStart(), result.getEnd())) {
+                    continue;
+                }
                 results.add(toFindResult(start, result));
             }
             return results;
@@ -310,6 +327,20 @@ public final class Parser {
         private <S> ParseFindResult<S> toFindResult(Class<S> start, NfaFindResult result) {
             S value = new TraceObjectBuilder().build(start, result.getTrace());
             return new ParseFindResult<S>(value, result.getTrace(), result.getStart(), result.getEnd());
+        }
+
+        private boolean rejectHardBoundaryCrossing(Class<?> start) {
+            return start.isAnnotationPresent(NoHardBoundary.class);
+        }
+
+        private boolean crossesHardBoundary(String input, int start, int end) {
+            for (int i = start; i < end; i++) {
+                char c = input.charAt(i);
+                if (c == '\n' || c == '\r' || c == '\t' || c == '\f') {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 }

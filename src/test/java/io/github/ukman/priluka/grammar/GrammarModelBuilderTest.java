@@ -4,6 +4,7 @@ import io.github.ukman.priluka.Parser;
 import io.github.ukman.priluka.annotation.Keyword;
 import io.github.ukman.priluka.annotation.Keywords;
 import io.github.ukman.priluka.annotation.OneOrMore;
+import io.github.ukman.priluka.annotation.Occurrences;
 import io.github.ukman.priluka.annotation.Separator;
 import io.github.ukman.priluka.annotation.Terminal;
 import org.junit.jupiter.api.Test;
@@ -106,6 +107,20 @@ class GrammarModelBuilderTest {
         GrammarModel model = Parser.describe(NumberList.class);
 
         assertEquals("NumberList => (empty | Integer (Comma Integer)*)", model.toBnf());
+    }
+
+    @Test
+    void describesBoundedRepetition() {
+        GrammarModel model = Parser.describe(BoundedNumberArray.class);
+
+        assertEquals("BoundedNumberArray => Integer{1,3}", model.toBnf());
+    }
+
+    @Test
+    void describesZeroMinBoundedRepetition() {
+        GrammarModel model = Parser.describe(BoundedGapArray.class);
+
+        assertEquals("BoundedGapArray => Integer{0,6}", model.toBnf());
     }
 
     @Test
@@ -284,6 +299,16 @@ class GrammarModelBuilderTest {
 
     static class NumberList {
         public NumberList(@Separator(Comma.class) List<Integer> numbers) {
+        }
+    }
+
+    static class BoundedNumberArray {
+        public BoundedNumberArray(@Occurrences(min = 1, max = 3) Integer[] numbers) {
+        }
+    }
+
+    static class BoundedGapArray {
+        public BoundedGapArray(@Occurrences(max = 6) Integer[] numbers) {
         }
     }
 

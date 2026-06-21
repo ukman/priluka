@@ -2,6 +2,8 @@ package io.github.ukman.priluka;
 
 import io.github.ukman.priluka.annotation.Keyword;
 import io.github.ukman.priluka.annotation.Keywords;
+import io.github.ukman.priluka.annotation.NoHardBoundary;
+import io.github.ukman.priluka.annotation.Occurrences;
 import io.github.ukman.priluka.annotation.Terminal;
 import org.junit.jupiter.api.Test;
 
@@ -130,6 +132,59 @@ class ParserTest {
     }
 
     @Test
+    void noHardBoundaryFiltersFindResultsCrossingHardBoundaries() {
+        Parser.InitializedParser parser = Parser
+            .builder()
+            .classes(NoBoundaryPhrase.class, CapitalizedWord.class, Ltd.class, Word.class)
+            .terminals(Word.class)
+            .engine(LexerEngine.ASCII_TEXT)
+            .build();
+
+        List<ParseFindResult<NoBoundaryPhrase>> results =
+            parser.findAll(NoBoundaryPhrase.class, "Acme\nLtd noise Acme Ltd");
+
+        assertEquals(1, results.size());
+        assertEquals(15, results.get(0).getStart());
+        assertEquals(23, results.get(0).getEnd());
+    }
+
+    @Test
+    void noHardBoundaryCanBeAppliedToConstructorParameter() {
+        Parser.InitializedParser parser = Parser
+            .builder()
+            .classes(NoBoundaryNameEvidence.class, NoBoundaryName.class, CapitalizedWord.class, Ltd.class, Word.class)
+            .terminals(Word.class)
+            .engine(LexerEngine.ASCII_TEXT)
+            .build();
+
+        List<ParseFindResult<NoBoundaryNameEvidence>> results =
+            parser.findAll(NoBoundaryNameEvidence.class, "Acme\nServices Ltd noise Acme Services Ltd");
+
+        assertEquals(1, results.size());
+        assertEquals(24, results.get(0).getStart());
+        assertEquals(41, results.get(0).getEnd());
+        assertEquals("Acme", results.get(0).getValue().name.words[0].text);
+    }
+
+    @Test
+    void noHardBoundaryParameterWorksWithDfaFindEngine() {
+        Parser.InitializedParser parser = Parser
+            .builder()
+            .classes(NoBoundaryNameEvidence.class, NoBoundaryName.class, CapitalizedWord.class, Ltd.class, Word.class)
+            .terminals(Word.class)
+            .engine(LexerEngine.ASCII_TEXT)
+            .dfaFind()
+            .build();
+
+        List<ParseFindResult<NoBoundaryNameEvidence>> results =
+            parser.findAll(NoBoundaryNameEvidence.class, "Acme\nServices Ltd noise Acme Services Ltd");
+
+        assertEquals(1, results.size());
+        assertEquals(24, results.get(0).getStart());
+        assertEquals(41, results.get(0).getEnd());
+    }
+
+    @Test
     void builderCanDisableKeywordCarrierOptimization() {
         ParseFindResult<SmallPerfect> result = Parser
             .builder()
@@ -204,6 +259,21 @@ class ParserTest {
         assertEquals(2, results.size());
         assertEquals(2, results.get(0).getValue().value);
         assertEquals(4, results.get(1).getValue().value);
+    }
+
+    @Test
+    void dfaFindEngineFindsBoundedRepetitionThroughPublicApi() {
+        List<ParseFindResult<BoundedNumbers>> results = Parser
+            .builder()
+            .dfaFind()
+            .build()
+            .findAll(BoundedNumbers.class, "1 2 3 4 5 6");
+
+        assertEquals(2, results.size());
+        assertEquals(3, results.get(0).getValue().values.length);
+        assertEquals(Integer.valueOf(3), results.get(0).getValue().values[2]);
+        assertEquals(3, results.get(1).getValue().values.length);
+        assertEquals(Integer.valueOf(6), results.get(1).getValue().values[2]);
     }
 
     @Test
@@ -426,6 +496,14 @@ class ParserTest {
         }
     }
 
+    static class BoundedNumbers {
+        final Integer[] values;
+
+        BoundedNumbers(@Occurrences(min = 1, max = 3) Integer[] values) {
+            this.values = values;
+        }
+    }
+
     interface Operator {
     }
 
@@ -490,6 +568,48 @@ class ParserTest {
     enum CaseInsensitiveKeyword {
         STARTED,
         FINISHED
+    }
+
+    @NoHardBoundary
+    static class NoBoundaryPhrase {
+        final CapitalizedWord name;
+
+        NoBoundaryPhrase(CapitalizedWord name, Ltd ltd) {
+            this.name = name;
+        }
+    }
+
+    static class NoBoundaryNameEvidence {
+        final NoBoundaryName name;
+
+        NoBoundaryNameEvidence(NoBoundaryName name, Ltd ltd) {
+            this.name = name;
+        }
+    }
+
+    static class NoBoundaryName {
+        final CapitalizedWord[] words;
+
+        NoBoundaryName(@NoHardBoundary @Occurrences(min = 1, max = 2) CapitalizedWord[] words) {
+            this.words = words;
+        }
+    }
+
+    @Terminal(regexp = "[A-Z][A-Za-z]*")
+    static class CapitalizedWord {
+        final String text;
+
+        CapitalizedWord(String text) {
+            this.text = text;
+        }
+    }
+
+    @Terminal(regexp = "[A-Za-z]+")
+    static class Word {
+    }
+
+    @Keyword(value = "Ltd", caseSensitive = false)
+    static class Ltd {
     }
 
     static final class DeepGrammar {
