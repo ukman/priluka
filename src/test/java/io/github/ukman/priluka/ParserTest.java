@@ -100,14 +100,33 @@ class ParserTest {
     @Test
     void findsWithAdditionalLexerCarrierTerminalThroughPublicApi() {
         ParseFindResult<SmallPerfect> result = Parser
-            .init(SmallPerfect.class, SmallPronoun.class, SmallHaveHas.class, SmallVerb3.class, SmallWord.class)
-            .find(SmallPerfect.class, "noise words i have started later", SmallWord.class);
+            .builder()
+            .classes(SmallPerfect.class, SmallPronoun.class, SmallHaveHas.class, SmallVerb3.class)
+            .terminals(SmallWord.class)
+            .build()
+            .find(SmallPerfect.class, "noise words i have started later");
 
         assertEquals(12, result.getStart());
         assertEquals(26, result.getEnd());
         assertEquals(SmallPronoun.I, result.getValue().pronoun);
         assertEquals(SmallHaveHas.HAVE, result.getValue().haveHas);
         assertEquals(SmallVerb3.STARTED, result.getValue().verb);
+    }
+
+    @Test
+    void findsAllWithConfiguredLexerCarrierTerminalThroughPublicApi() {
+        List<ParseFindResult<SmallPerfect>> results = Parser
+            .builder()
+            .classes(SmallPerfect.class, SmallPronoun.class, SmallHaveHas.class, SmallVerb3.class)
+            .terminals(SmallWord.class)
+            .build()
+            .findAll(SmallPerfect.class, "i have started and they have finished");
+
+        assertEquals(2, results.size());
+        assertEquals(SmallPronoun.I, results.get(0).getValue().pronoun);
+        assertEquals(SmallVerb3.STARTED, results.get(0).getValue().verb);
+        assertEquals(SmallPronoun.THEY, results.get(1).getValue().pronoun);
+        assertEquals(SmallVerb3.FINISHED, results.get(1).getValue().verb);
     }
 
     @Test

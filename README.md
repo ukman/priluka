@@ -1664,6 +1664,21 @@ int end = result.getEnd();
 SelectStatement statement = result.getValue();
 ```
 
+When the search lexer needs additional carrier terminals that are not part of
+the derivation itself, configure them on the parser instance instead of passing
+them to a single find call:
+
+```java
+Parser parser = Parser
+    .builder()
+    .classes(SentencePerfect.class, Pronoun.class, HaveHas.class, Verb3Form.class)
+    .terminals(Word.class)
+    .build();
+
+ParseFindResult<SentencePerfect> first = parser.find(SentencePerfect.class, text);
+List<ParseFindResult<SentencePerfect>> all = parser.findAll(SentencePerfect.class, text);
+```
+
 This first find mode is still token-stream based: the lexer must be able to
 tokenize the searched text using the grammar's terminals and skip terminals.
 Finding through completely arbitrary character noise will need a lexer scan
