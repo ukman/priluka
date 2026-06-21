@@ -34,7 +34,14 @@ public final class Lexers {
         return new AsciiWordLexer(spec, wordTerminalType);
     }
 
+    public static Lexer asciiText(LexerSpec spec) {
+        return new AsciiTextLexer(spec);
+    }
+
     public static Lexer create(LexerEngine engine, LexerSpec spec, LexerOptions options) {
+        if (engine == LexerEngine.ASCII_TEXT) {
+            return asciiText(spec);
+        }
         if (engine == LexerEngine.JAVA_REGEX) {
             return javaRegex(spec, options);
         }

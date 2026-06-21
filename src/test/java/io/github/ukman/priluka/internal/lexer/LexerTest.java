@@ -205,6 +205,61 @@ class LexerTest {
         assertTrue(lexemes.get(1).hasTerminal(Word.class));
     }
 
+    @Test
+    void asciiTextLexerSplitsTextAndAddsKeywordTypesFromMap() {
+        Lexer lexer = Lexers.asciiText(new LexerSpec(Arrays.asList(
+            keyword(Year2026.class, "2026", 0),
+            keyword(Slash.class, "/", 0),
+            keyword(Month04.class, "04", 0),
+            keyword(April.class, "April", false, 0)
+        )));
+
+        List<Lexeme> lexemes = lexer.tokenize("noise 2026/04 APRIL @");
+
+        assertEquals(6, lexemes.size());
+        assertEquals("noise", lexemes.get(0).getText());
+        assertEquals(0, lexemes.get(0).getTerminalTypes().size());
+        assertTrue(lexemes.get(1).hasTerminal(Year2026.class));
+        assertTrue(lexemes.get(2).hasTerminal(Slash.class));
+        assertTrue(lexemes.get(3).hasTerminal(Month04.class));
+        assertTrue(lexemes.get(4).hasTerminal(April.class));
+        assertEquals("@", lexemes.get(5).getText());
+        assertEquals(0, lexemes.get(5).getTerminalTypes().size());
+    }
+
+    @Test
+    void asciiTextLexerAddsWordNumberAndSymbolCarrierTypes() {
+        Lexer lexer = Lexers.asciiText(new LexerSpec(Arrays.asList(
+            regexp(Word.class, "[A-Za-z]+", false, 0),
+            regexp(Number.class, "[0-9]+", false, 0),
+            regexp(Symbol.class, "[^A-Za-z0-9\\s]", false, 0),
+            keyword(If.class, "if", false, 0),
+            keyword(Pound.class, "£", 0),
+            keyword(Percent.class, "%", 0)
+        )));
+
+        List<Lexeme> lexemes = lexer.tokenize("IF £25,000 50%");
+
+        assertEquals(7, lexemes.size());
+        assertEquals("IF", lexemes.get(0).getText());
+        assertTrue(lexemes.get(0).hasTerminal(Word.class));
+        assertTrue(lexemes.get(0).hasTerminal(If.class));
+        assertEquals("£", lexemes.get(1).getText());
+        assertTrue(lexemes.get(1).hasTerminal(Symbol.class));
+        assertTrue(lexemes.get(1).hasTerminal(Pound.class));
+        assertEquals("25", lexemes.get(2).getText());
+        assertTrue(lexemes.get(2).hasTerminal(Number.class));
+        assertEquals(",", lexemes.get(3).getText());
+        assertTrue(lexemes.get(3).hasTerminal(Symbol.class));
+        assertEquals("000", lexemes.get(4).getText());
+        assertTrue(lexemes.get(4).hasTerminal(Number.class));
+        assertEquals("50", lexemes.get(5).getText());
+        assertTrue(lexemes.get(5).hasTerminal(Number.class));
+        assertEquals("%", lexemes.get(6).getText());
+        assertTrue(lexemes.get(6).hasTerminal(Symbol.class));
+        assertTrue(lexemes.get(6).hasTerminal(Percent.class));
+    }
+
     static Stream<LexerFactory> lexerFactories() {
         return Stream.of(
             new LexerFactory() {
@@ -299,9 +354,33 @@ class LexerTest {
     static class Word {
     }
 
+    static class Number {
+    }
+
+    static class Symbol {
+    }
+
     static class Verb3Form {
     }
 
     static class Comma {
+    }
+
+    static class Year2026 {
+    }
+
+    static class Slash {
+    }
+
+    static class Month04 {
+    }
+
+    static class April {
+    }
+
+    static class Pound {
+    }
+
+    static class Percent {
     }
 }

@@ -10,6 +10,7 @@ import io.github.ukman.priluka.grammar.GrammarModel;
 import io.github.ukman.priluka.grammar.TerminalSymbol;
 import io.github.ukman.priluka.internal.GrammarModelBuilder;
 import io.github.ukman.priluka.internal.lexer.Lexer;
+import io.github.ukman.priluka.internal.lexer.LexerConfig;
 import io.github.ukman.priluka.internal.lexer.LexerSpec;
 import io.github.ukman.priluka.internal.lexer.Lexers;
 import org.junit.jupiter.api.Test;
@@ -165,6 +166,57 @@ class NfaRecognizerTest {
     }
 
     @Test
+    void dfaFindsSameSpansAsNfaForAlternativesAndRepetition() {
+        GrammarModel model = Parser.describe(NumberArray.class);
+        NfaRecognizer nfa = new NfaRecognizer(model);
+        DfaFindRecognizer dfa = dfaRecognizer(model);
+
+        List<NfaFindSpan> nfaResults = nfa.findSpans("1,2,3 x 4,5 + 6");
+        List<NfaFindSpan> dfaResults = dfa.findSpans("1,2,3 x 4,5 + 6");
+
+        assertEquals(nfaResults.size(), dfaResults.size());
+        for (int i = 0; i < nfaResults.size(); i++) {
+            assertEquals(nfaResults.get(i).getStart(), dfaResults.get(i).getStart());
+            assertEquals(nfaResults.get(i).getEnd(), dfaResults.get(i).getEnd());
+        }
+    }
+
+    @Test
+    void dfaFindBuildsTraceByReparsingMatchedSpan() {
+        GrammarModel model = Parser.describe(PlusNumber.class);
+        DfaFindRecognizer dfa = dfaRecognizer(model);
+
+        List<NfaFindResult> results = dfa.findAll("1 + 2 3 + 4");
+        PlusNumber first = Parser.buildFromTrace(PlusNumber.class, results.get(0).getTrace());
+        PlusNumber second = Parser.buildFromTrace(PlusNumber.class, results.get(1).getTrace());
+
+        assertEquals(2, first.value);
+        assertEquals(4, second.value);
+    }
+
+    @Test
+    void dfaFindsKeywordWhenLexerAlsoAddsUnusedCarrierTerminal() {
+        GrammarModel model = Parser
+            .builder()
+            .classes(KeywordOnly.class, Hello.class, WordCarrier.class)
+            .terminals(WordCarrier.class)
+            .build()
+            .describe(KeywordOnly.class);
+        LexerConfig lexerConfig = LexerConfig.terminals(WordCarrier.class);
+        DfaFindRecognizer dfa = new DfaFindRecognizer(
+            new NfaCompiler(model).compile(),
+            lexerConfig.createLexer(model),
+            lexerConfig.configuredTerminals(model)
+        );
+
+        List<NfaFindSpan> results = dfa.findSpans("noise hello later");
+
+        assertEquals(1, results.size());
+        assertEquals(6, results.get(0).getStart());
+        assertEquals(11, results.get(0).getEnd());
+    }
+
+    @Test
     void findsSpansThroughStreamingAsciiWordLexer() {
         GrammarModel model = Parser
             .initFromOuterClass(SmallPerfectGrammar.class)
@@ -196,6 +248,14 @@ class NfaRecognizerTest {
     private NfaRecognizer recognizer(Class<?> start) {
         GrammarModel model = Parser.describe(start);
         return new NfaRecognizer(model);
+    }
+
+    private DfaFindRecognizer dfaRecognizer(GrammarModel model) {
+        return new DfaFindRecognizer(
+            new NfaCompiler(model).compile(),
+            LexerConfig.DEFAULT.createLexer(model),
+            LexerConfig.DEFAULT.configuredTerminals(model)
+        );
     }
 
     static class Point {
@@ -248,6 +308,19 @@ class NfaRecognizerTest {
 
     @Keyword("-")
     static class Minus {
+    }
+
+    static class KeywordOnly {
+        KeywordOnly(Hello hello) {
+        }
+    }
+
+    @Keyword(value = "hello", caseSensitive = false)
+    static class Hello {
+    }
+
+    @Terminal(regexp = "[A-Za-z]+")
+    static class WordCarrier {
     }
 
     @Keyword(",")

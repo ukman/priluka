@@ -181,6 +181,32 @@ class ParserTest {
     }
 
     @Test
+    void builderConfiguresNfaFindEngine() {
+        List<ParseFindResult<PlusNumber>> results = Parser
+            .builder()
+            .findEngine(FindEngine.NFA)
+            .build()
+            .findAll(PlusNumber.class, "1 + 2 3 + 4");
+
+        assertEquals(2, results.size());
+        assertEquals(2, results.get(0).getValue().value);
+        assertEquals(4, results.get(1).getValue().value);
+    }
+
+    @Test
+    void builderConfiguresDfaFindEngine() {
+        List<ParseFindResult<PlusNumber>> results = Parser
+            .builder()
+            .dfaFind()
+            .build()
+            .findAll(PlusNumber.class, "1 + 2 3 + 4");
+
+        assertEquals(2, results.size());
+        assertEquals(2, results.get(0).getValue().value);
+        assertEquals(4, results.get(1).getValue().value);
+    }
+
+    @Test
     void builderConfiguresCaseInsensitiveRegexpMode() {
         LowerWordExpression expression = Parser
             .builder()
@@ -389,6 +415,14 @@ class ParserTest {
 
         OperatorExpression(Operator operator) {
             this.operator = operator;
+        }
+    }
+
+    static class PlusNumber {
+        final Integer value;
+
+        PlusNumber(Plus plus, Integer value) {
+            this.value = value;
         }
     }
 
