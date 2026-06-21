@@ -250,7 +250,7 @@ mvn -q compile exec:java \
 
 ```text
 target    engine  matches  prepare  warmup   avg scan  speed
-deadline  DFA     10       10.75s   12.24s   2.26s     8.83 MiB/s
+deadline  DFA     10       8.49s    8.61s    1.78s     11.21 MiB/s
 ```
 
 This run is a single 20 MiB string, not a small file scan. The DFA `prepare`
