@@ -1,5 +1,10 @@
 package io.github.ukman.priluka;
 
+/**
+ * Result of searching for a grammar match inside a larger input string.
+ *
+ * @param <S> parsed value type for the requested start symbol
+ */
 public final class ParseFindResult<S> {
     private final S value;
     private final ParseTrace trace;

@@ -5,6 +5,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Grammar production discovered from a constructor or implementation alternative.
+ */
 public final class Production {
     private final NonterminalSymbol owner;
     private final Constructor<?> constructor;

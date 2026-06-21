@@ -4,6 +4,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Diagnostic result describing whether a grammar model fits the NFA engine subset.
+ */
 public final class NfaCompatibility {
     private final List<String> reasons;
 

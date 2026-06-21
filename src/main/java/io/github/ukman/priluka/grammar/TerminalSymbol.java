@@ -4,7 +4,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Terminal symbol discovered from a terminal annotation, keyword annotation, enum, or built-in type.
+ */
 public final class TerminalSymbol {
+    /**
+     * Terminal recognition strategy.
+     */
     public enum Kind {
         REGEXP,
         KEYWORD,

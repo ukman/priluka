@@ -1,6 +1,12 @@
 package io.github.ukman.priluka.grammar;
 
+/**
+ * One part of a production body, including optional, repeated, and separated forms.
+ */
 public final class ProductionPart {
+    /**
+     * Cardinality of a production part.
+     */
     public enum Quantifier {
         ONE,
         OPTIONAL,

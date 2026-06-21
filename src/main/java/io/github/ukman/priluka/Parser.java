@@ -57,6 +57,9 @@ public final class Parser {
         return init(start).describe(start);
     }
 
+    /**
+     * Fluent configuration builder for parser instances.
+     */
     public static final class Builder {
         private final List<Class<?>> classes = new ArrayList<Class<?>>();
         private final List<Class<?>> lexerTerminalTypes = new ArrayList<Class<?>>();
@@ -144,6 +147,9 @@ public final class Parser {
         }
     }
 
+    /**
+     * Parser instance configured with a class universe and lexer options.
+     */
     public static final class InitializedParser {
         private final Class<?>[] classes;
         private final LexerConfig lexerConfig;

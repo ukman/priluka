@@ -4,6 +4,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Nonterminal symbol discovered from a Java class, interface, or abstract class.
+ */
 public final class NonterminalSymbol {
     private final Class<?> type;
     private final List<Production> productions = new ArrayList<Production>();

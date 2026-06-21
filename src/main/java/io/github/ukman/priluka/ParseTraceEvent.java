@@ -2,7 +2,13 @@ package io.github.ukman.priluka;
 
 import io.github.ukman.priluka.grammar.Production;
 
+/**
+ * Single event in a parse trace, such as entering a production or consuming a terminal.
+ */
 public final class ParseTraceEvent {
+    /**
+     * Trace event category.
+     */
     public enum Kind {
         BEGIN_PRODUCTION,
         END_PRODUCTION,

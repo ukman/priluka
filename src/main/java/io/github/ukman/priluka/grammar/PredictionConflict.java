@@ -4,6 +4,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * LL-style prediction conflict for a nonterminal and a lookahead terminal.
+ */
 public final class PredictionConflict {
     private final NonterminalSymbol nonterminal;
     private final Class<?> lookaheadType;

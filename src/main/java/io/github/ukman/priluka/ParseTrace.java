@@ -4,6 +4,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Ordered parser trace events that describe one accepted derivation.
+ */
 public final class ParseTrace {
     private final List<ParseTraceEvent> events;
 
