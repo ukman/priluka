@@ -13,6 +13,7 @@ import io.github.ukman.priluka.internal.lexer.LexerOptions;
 import io.github.ukman.priluka.internal.lexer.LexerSpec;
 import io.github.ukman.priluka.internal.lexer.Lexers;
 import io.github.ukman.priluka.internal.nfa.NfaCompiler;
+import io.github.ukman.priluka.internal.nfa.NfaFindSpan;
 import io.github.ukman.priluka.internal.nfa.NfaParseEngine;
 import io.github.ukman.priluka.internal.nfa.NfaRecognizer;
 import io.github.ukman.priluka.internal.parser.ParseEngine;
@@ -222,6 +223,45 @@ class ParserPerformanceTest {
 
         double averageSeconds = (totalNanos / (double) MEASURE_RUNS) / 1_000_000_000.0;
         System.out.println(new FindResult("present-perfect-word-find", input.length(), found, averageSeconds));
+    }
+
+    @Test
+    void findsPresentPerfectSpansWithStreamingWordLexer() {
+        Assumptions.assumeTrue(
+            Boolean.getBoolean("priluka.perf"),
+            "Manual parser performance dump. Run with -Dpriluka.perf=true -Dtest=ParserPerformanceTest."
+        );
+
+        Parser.InitializedParser parser = Parser.initFromOuterClass(PresentPerfectGrammar.class);
+        GrammarModel model = parser.describe(PresentPerfectGrammar.SentencePerfect.class);
+        NfaRecognizer recognizer = new NfaRecognizer(
+            new NfaCompiler(model).compile(),
+            presentPerfectAsciiWordLexer(model)
+        );
+        String input = generatedPresentPerfectText(
+            Integer.getInteger("priluka.parser.perfect.bytes", 100 * 1024)
+        );
+
+        for (int i = 0; i < WARMUP_RUNS; i++) {
+            List<NfaFindSpan> spans = recognizer.findSpans(input);
+            if (spans.size() != 5) {
+                throw new AssertionError("Expected 5 present perfect spans, found " + spans.size());
+            }
+        }
+
+        long totalNanos = 0;
+        int found = 0;
+        for (int i = 0; i < MEASURE_RUNS; i++) {
+            long start = System.nanoTime();
+            found = recognizer.findSpans(input).size();
+            totalNanos += System.nanoTime() - start;
+        }
+        if (found != 5) {
+            throw new AssertionError("Expected 5 present perfect spans, found " + found);
+        }
+
+        double averageSeconds = (totalNanos / (double) MEASURE_RUNS) / 1_000_000_000.0;
+        System.out.println(new FindResult("present-perfect-word-spans", input.length(), found, averageSeconds));
     }
 
     @Test

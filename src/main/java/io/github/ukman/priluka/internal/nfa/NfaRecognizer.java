@@ -4,9 +4,11 @@ import io.github.ukman.priluka.ParseTrace;
 import io.github.ukman.priluka.ParseTraceEvent;
 import io.github.ukman.priluka.grammar.GrammarModel;
 import io.github.ukman.priluka.internal.lexer.Lexeme;
+import io.github.ukman.priluka.internal.lexer.LexemeCursor;
 import io.github.ukman.priluka.internal.lexer.Lexer;
 import io.github.ukman.priluka.internal.lexer.LexerConfig;
 import io.github.ukman.priluka.internal.lexer.LexerException;
+import io.github.ukman.priluka.internal.lexer.StreamingLexer;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -133,6 +135,78 @@ public final class NfaRecognizer {
         return results;
     }
 
+    public List<NfaFindSpan> findSpans(String input) {
+        if (lexer instanceof StreamingLexer) {
+            return findSpans(((StreamingLexer) lexer).cursor(input));
+        }
+        try {
+            return findSpans(lexer.tokenize(input));
+        } catch (LexerException e) {
+            return new ArrayList<NfaFindSpan>();
+        }
+    }
+
+    public List<NfaFindSpan> findSpans(List<Lexeme> lexemes) {
+        List<NfaFindSpan> results = new ArrayList<NfaFindSpan>();
+        int tokenIndex = 0;
+        while (tokenIndex < lexemes.size()) {
+            FindSpan span = findSpan(lexemes, tokenIndex);
+            if (span == null) {
+                break;
+            }
+            results.add(new NfaFindSpan(span.start, span.end));
+            int nextTokenIndex = span.endTokenIndex;
+            tokenIndex = nextTokenIndex > tokenIndex ? nextTokenIndex : tokenIndex + 1;
+        }
+        return results;
+    }
+
+    private List<NfaFindSpan> findSpans(LexemeCursor cursor) {
+        List<NfaFindSpan> spans = new ArrayList<NfaFindSpan>();
+        List<Configuration> active = new ArrayList<Configuration>();
+        FindSpan best = null;
+        int tokenIndex = 0;
+        while (cursor.next()) {
+            if (best == null && canStartAt(cursor)) {
+                active.addAll(epsilonClosure(
+                    singleton(new Configuration(graph.getStart(), cursor.getStart(), tokenIndex)),
+                    false
+                ));
+            }
+
+            List<Configuration> next = new ArrayList<Configuration>();
+            for (Configuration configuration : active) {
+                List<NfaTransition> transitions = outgoing.get(configuration.state);
+                for (NfaTransition transition : transitions) {
+                    if (
+                        transition.getKind() == NfaTransition.Kind.TERMINAL
+                            && cursor.hasTerminal(transition.getSymbolType())
+                    ) {
+                        next.add(configuration.advance(transition, cursor, tokenIndex));
+                    }
+                }
+            }
+
+            active = epsilonClosure(next, false);
+            FindSpan accepted = firstAcceptedSpan(active);
+            if (accepted != null) {
+                best = betterFindSpan(best, accepted);
+            }
+            if (best != null) {
+                active = configurationsStartingAtOrBefore(active, best.start);
+                if (active.isEmpty()) {
+                    spans.add(new NfaFindSpan(best.start, best.end));
+                    best = null;
+                }
+            }
+            tokenIndex++;
+        }
+        if (best != null) {
+            spans.add(new NfaFindSpan(best.start, best.end));
+        }
+        return spans;
+    }
+
     private NfaFindResult find(List<Lexeme> lexemes, int startTokenIndex) {
         FindSpan span = findSpan(lexemes, startTokenIndex);
         if (span == null) {
@@ -192,6 +266,15 @@ public final class NfaRecognizer {
     private boolean canStartAt(Lexeme lexeme) {
         for (Class<?> type : startTerminalTypes) {
             if (lexeme.hasTerminal(type)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean canStartAt(LexemeCursor cursor) {
+        for (Class<?> type : startTerminalTypes) {
+            if (cursor.hasTerminal(type)) {
                 return true;
             }
         }
@@ -411,6 +494,17 @@ public final class NfaRecognizer {
                 nextEnd,
                 startTokenIndex,
                 nextEndTokenIndex
+            );
+        }
+
+        private Configuration advance(NfaTransition transition, LexemeCursor cursor, int tokenIndex) {
+            return new Configuration(
+                transition.getTo(),
+                null,
+                start,
+                cursor.getStart() + cursor.getLen(),
+                startTokenIndex,
+                tokenIndex + 1
             );
         }
 
